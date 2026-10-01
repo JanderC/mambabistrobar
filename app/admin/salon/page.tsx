@@ -7,8 +7,9 @@ import { useSesion } from '@/components/admin/Sesion';
 import { Boton, Campo, Cargando, Encabezado, ErrorCaja, Input, InputNum, Insignia, Modal, Tarjeta, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
 import { type Moneda, dinero, hace } from '@/lib/admin/moneda';
+import { useVivo } from '@/lib/admin/vivo';
 
-type CuentaMesa = { id: number; numero: string; mesa_id: number | null; asiento: number | null; tipo: string; personas: number; nombre_cliente: string | null; total: number; pagado: number; moneda: Moneda; abierta_en: string; mesonero: string | null; pendientes: number; listos: number };
+type CuentaMesa = { id: number; numero: string; mesa_id: number | null; asiento: number | null; tipo: string; personas: number; nombre_cliente: string | null; total: number; pagado: number; moneda: Moneda; abierta_en: string; mesonero: string | null; pendientes: number; listos: number; cobro_solicitado_en: string | null };
 type ReservaMesa = { id: string; codigo: string; nombre_completo: string; hora: string; personas: number; estado: string; mesa_id: number | null; zona_id: number };
 type Mesa = { id: number; zona_id: number; numero: number; nombre: string | null; tipo: 'mesa' | 'barra' | 'vip'; forma: string; capacidad: number; pos_x: number; pos_y: number; cuentas: CuentaMesa[]; reservas: ReservaMesa[] };
 type Zona = { id: number; slug: string; nombre: string; color: string; es_vip: boolean; mesas: Mesa[] };
@@ -17,7 +18,8 @@ type Salon = { aforo: { actual: number; maximo: number; en_puerta: number; con_c
 export default function SalonPage() {
   const router = useRouter();
   const { es } = useSesion();
-  const { datos, cargando, error, recargar } = useDatos<Salon>('/salon', 10_000);
+  const { datos, cargando, error, recargar } = useDatos<Salon>('/salon', 30_000);
+  useVivo(() => recargar()); // el plano se actualiza al instante con cada pedido, comanda o cobro
   const [zonaId, setZonaId] = useState<number | null>(null);
   const [mesaSel, setMesaSel] = useState<number | null>(null);
   const [puesto, setPuesto] = useState<number | null>(null);
@@ -153,6 +155,7 @@ export default function SalonPage() {
             <Leyenda color="border-smoke/40" texto="Libre" />
             <Leyenda color="border-venom bg-emerald" texto="Ocupada" />
             <Leyenda color="border-gold bg-gold/30" texto="Pedido listo para llevar" />
+            <Leyenda color="border-sky-400 bg-sky-400/30" texto="Pidió la cuenta (en caja)" />
             <Leyenda color="border-dashed border-sky-400" texto="Reservada hoy" />
             {editando && <span className="ml-auto text-gold">Arrastra las mesas y guarda</span>}
           </div>
@@ -281,6 +284,7 @@ function MesaNodo({ mesa, color, onClick }: { mesa: Mesa; color: string; onClick
   const personas = mesa.cuentas.reduce((s, c) => s + c.personas, 0);
   const saldo = mesa.cuentas.reduce((s, c) => s + (c.total - c.pagado), 0);
   const reservada = !ocupada && mesa.reservas.length > 0;
+  const enCaja = mesa.cuentas.some((c) => c.cobro_solicitado_en);
   const rect = mesa.forma === 'rectangular';
   const W = rect ? 150 : mesa.capacidad > 8 ? 104 : 84;
   const H = rect ? 84 : W;
@@ -308,7 +312,7 @@ function MesaNodo({ mesa, color, onClick }: { mesa: Mesa; color: string; onClick
       <span
         className={`absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center border-2 transition group-hover:scale-105 ${
           mesa.forma === 'redonda' ? 'rounded-full' : 'rounded-2xl'
-        } ${listos ? 'animate-pulse border-gold bg-gold/25' : ocupada ? 'border-venom bg-emerald' : reservada ? 'border-dashed border-sky-400 bg-sky-400/10' : 'border-smoke/30 bg-void/60'}`}
+        } ${listos ? 'animate-pulse border-gold bg-gold/25' : enCaja ? 'border-sky-400 bg-sky-400/20' : ocupada ? 'border-venom bg-emerald' : reservada ? 'border-dashed border-sky-400 bg-sky-400/10' : 'border-smoke/30 bg-void/60'}`}
         style={{ width: W, height: H, boxShadow: ocupada ? `0 0 30px -8px ${color}` : undefined }}
       >
         <span className="font-display text-2xl leading-none font-light">{mesa.numero}</span>

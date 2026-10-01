@@ -8,6 +8,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { adm } from '@/lib/admin/api';
 import { type Area, INICIO, ROLES, areasPara, ubicar } from '@/lib/admin/modulos';
 import { type Tasa, fechaCorta, fechaHora, numero } from '@/lib/admin/moneda';
+import { sonar, useVivo, useVivoConectado } from '@/lib/admin/vivo';
 import { useSesion } from './Sesion';
 import { Boton, Campo, Input, Modal, useAvisos, useDatos } from './ui';
 
@@ -230,6 +231,7 @@ function Estado() {
 
   return (
     <div ref={ref} className="relative flex items-center gap-2">
+      <EnVivo />
       {tasa.datos && (
         <Link href="/admin/tasas" className="hidden h-9 items-center gap-2 rounded-xl border border-gold/15 px-3 text-xs text-smoke hover:border-gold/40 xl:flex" title="Tasa vigente">
           <TrendingUp size={14} className="text-gold" />
@@ -309,6 +311,40 @@ function Estado() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Indicador de conexión en vivo + avisos que le importan a cada rol, esté en la pantalla que esté:
+ *  - al mesonero: "tu pedido está listo" y "tu mesa ya pagó"
+ *  - a caja/barra: "una mesa pasó a caja"
+ */
+function EnVivo() {
+  const { usuario, es } = useSesion();
+  const conectado = useVivoConectado();
+  const avisos = useAvisos();
+  const cobra = es('gerente', 'cajero', 'barra');
+
+  useVivo((e) => {
+    if (e.tipo === 'comanda' && e.estado === 'listo') {
+      const mios = e.items.filter((i) => i.mesonero_id === usuario?.id);
+      if (!mios.length) return;
+      sonar('listo');
+      avisos.info(`🔔 ${mios[0].lugar}${mios[0].cliente ? ` · ${mios[0].cliente}` : ''}: ${mios.map((i) => `${i.cantidad}× ${i.nombre}`).join(', ')} listo para llevar`);
+    }
+    if (e.tipo === 'cobro' && e.accion === 'solicitado' && cobra) {
+      sonar('cobro');
+      avisos.info(`💳 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''} pasó a caja (${e.mesonero ?? 'mesonero'})`);
+    }
+    if (e.tipo === 'cobro' && e.accion === 'cobrado' && e.mesonero_id === usuario?.id && !cobra) avisos.ok(`✓ ${e.lugar}: cuenta cobrada en caja`);
+  });
+
+  return (
+    <span title={conectado ? 'Conectado en vivo: los pedidos llegan al instante' : 'Sin conexión en vivo: reconectando…'}
+      className={`hidden h-9 items-center gap-1.5 rounded-xl border px-2.5 text-[11px] sm:flex ${conectado ? 'border-venom/30 text-venom' : 'border-red-400/40 text-red-300'}`}>
+      <span className={`h-2 w-2 rounded-full ${conectado ? 'animate-pulse bg-venom' : 'bg-red-400'}`} />
+      {conectado ? 'En vivo' : 'Reconectando'}
+    </span>
   );
 }
 

@@ -2,7 +2,8 @@
 
 import { AlertTriangle, ArrowRight, CalendarCheck, ChefHat, Lock, Martini, PartyPopper, Unlock, Users } from 'lucide-react';
 import Link from 'next/link';
-import { useMemo } from 'react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo } from 'react';
 import { useSesion } from '@/components/admin/Sesion';
 import { Cargando, Dato, ErrorCaja, Insignia, Tarjeta, useDatos } from '@/components/admin/ui';
 import { areasPara } from '@/lib/admin/modulos';
@@ -21,12 +22,19 @@ type Tablero = {
 
 export default function InicioPage() {
   const { usuario } = useSesion();
+  const router = useRouter();
   const { datos: t, cargando, error, recargar } = useDatos<Tablero>('/reportes/tablero', 30_000);
+
+  // Cada rol aterriza en su pantalla de trabajo
+  const destino = usuario?.rol === 'mesonero' ? '/admin/mesero' : usuario?.rol === 'cocina' ? '/admin/comandas' : null;
+  useEffect(() => {
+    if (destino) router.replace(destino);
+  }, [destino, router]);
   const areas = useMemo(() => areasPara(usuario?.rol), [usuario?.rol]);
   const hora = new Date().getHours();
   const saludo = hora < 12 ? 'Buenos días' : hora < 19 ? 'Buenas tardes' : 'Buenas noches';
 
-  if (cargando) return <Cargando />;
+  if (cargando || destino) return <Cargando />;
   if (error || !t) return <ErrorCaja mensaje={error ?? 'Sin datos'} onReintentar={recargar} />;
   const maxHora = Math.max(...(t.ventas?.por_hora.map((h) => h.total) ?? [1]), 1);
   const sinTasa = !t.tasa || t.tasa.fuente === 'inicial';

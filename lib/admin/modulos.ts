@@ -1,6 +1,6 @@
 import {
   type LucideIcon, Armchair, BarChart3, Bell, Beer, Boxes, CalendarCheck, ChefHat, CreditCard, Home, LayoutGrid, Megaphone,
-  PartyPopper, Receipt, Settings, ShieldCheck, Sparkles, TrendingUp, UserCog, Users, UtensilsCrossed, Wallet,
+  PartyPopper, Receipt, Settings, ShieldCheck, Sparkles, TabletSmartphone, TrendingUp, UserCog, Users, UtensilsCrossed, Wallet,
 } from 'lucide-react';
 
 export type Rol = 'admin' | 'gerente' | 'cajero' | 'mesonero' | 'barra' | 'cocina' | 'rrpp';
@@ -40,6 +40,7 @@ export const AREAS: Area[] = [
   {
     id: 'operacion', nombre: 'Operación', icono: UtensilsCrossed, color: '#3dffb0',
     modulos: [
+      { href: '/admin/mesero', nombre: 'Mis mesas', descripcion: 'Tablet del mesonero: abre mesas, toma pedidos, entrega y pasa a caja', icono: TabletSmartphone, roles: SERVICIO, claves: 'tablet mesonero mesero pedidos tomar orden' },
       { href: '/admin/salon', nombre: 'Salón', descripcion: 'Plano de mesas y asientos en vivo, aforo y cuentas abiertas', icono: Armchair, roles: [...SERVICIO, 'rrpp'], claves: 'mesas plano asientos aforo puerta' },
       { href: '/admin/barra', nombre: 'Barra', descripcion: 'Venta rápida: los clientes van cancelando', icono: Beer, roles: COBRO, claves: 'venta rapida taburete tobo cerveza' },
       { href: '/admin/comandas', nombre: 'Comandas', descripcion: 'Pantalla de cocina y barra con los pedidos por preparar', icono: ChefHat, roles: [...SERVICIO, 'cocina'], claves: 'cocina kds pedidos' },
@@ -85,7 +86,7 @@ export const areasPara = (rol: Rol | undefined) =>
 
 /** Área y módulo a los que pertenece una ruta */
 export function ubicar(pathname: string) {
-  if (pathname.startsWith('/admin/cuenta/')) pathname = '/admin/salon';
+  if (pathname.startsWith('/admin/cuenta/')) pathname = '/admin/mesero';
   for (const area of AREAS) {
     const modulo = area.modulos.find((m) => pathname === m.href || pathname.startsWith(`${m.href}/`));
     if (modulo) return { area, modulo };

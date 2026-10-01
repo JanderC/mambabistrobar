@@ -7,12 +7,14 @@ import { useState } from 'react';
 import { Boton, Cargando, Encabezado, ErrorCaja, Input, Insignia, Tarjeta, Vacio, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
 import { type Moneda, dinero, hace } from '@/lib/admin/moneda';
+import { useVivo } from '@/lib/admin/vivo';
 
 type Cuenta = { id: number; numero: string; nombre_cliente: string | null; total: number; pagado: number; moneda: Moneda; abierta_en: string; mesa_numero: number | null; items: number; mesonero: string | null };
 
 export default function BarraPage() {
   const router = useRouter();
-  const { datos, cargando, error, recargar } = useDatos<Cuenta[]>('/cuentas?estado=abierta&tipo=barra', 10_000);
+  const { datos, cargando, error, recargar } = useDatos<Cuenta[]>('/cuentas?estado=abierta&tipo=barra', 30_000);
+  useVivo(() => recargar());
   const [nombre, setNombre] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const avisos = useAvisos();

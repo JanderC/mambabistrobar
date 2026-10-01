@@ -6,10 +6,12 @@ import { useParams, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useSesion } from '@/components/admin/Sesion';
 import { Cobro } from '@/components/admin/pos/Cobro';
+import { PasarACaja } from '@/components/admin/pos/PasarACaja';
 import { Configurador } from '@/components/admin/pos/Configurador';
 import { type Borrador, type Catalogo, type CategoriaCat, type Cuenta, type ItemCuenta, type ProductoCat, tituloCuenta } from '@/components/admin/pos/tipos';
 import { Area, Boton, Campo, Cargando, ErrorCaja, Input, InputNum, Insignia, Interruptor, Modal, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
+import { useVivo } from '@/lib/admin/vivo';
 import { MONEDAS, dinero, fechaHora, hace, soloHora } from '@/lib/admin/moneda';
 
 const ESTADO_ITEM: Record<string, { texto: string; color: 'gris' | 'oro' | 'verde' | 'azul' | 'rojo' }> = {
@@ -21,8 +23,8 @@ const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLo
 export default function CuentaPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const { es } = useSesion();
-  const cuenta = useDatos<Cuenta>(`/cuentas/${id}`, 12_000);
+  const { es, usuario } = useSesion();
+  const cuenta = useDatos<Cuenta>(`/cuentas/${id}`, 30_000);
   const catalogo = useDatos<Catalogo>('/pos/catalogo', 60_000);
   const avisos = useAvisos();
 
@@ -39,6 +41,14 @@ export default function CuentaPage() {
   const [menu, setMenu] = useState(false);
   const [vistaMovil, setVistaMovil] = useState<'carta' | 'cuenta'>('carta');
   const [ocupado, setOcupado] = useState(false);
+  const [aCaja, setACaja] = useState(false);
+
+  // En vivo: si barra/cocina marcan algo listo o caja cobra, esta pantalla se entera al instante
+  useVivo((e) => {
+    if (e.tipo === 'reconectado') return cuenta.recargar();
+    const esMia = e.tipo === 'comanda' ? e.items.some((i) => String(i.cuenta_id) === id) : 'cuenta_id' in e && String(e.cuenta_id) === id;
+    if (esMia) cuenta.recargar();
+  });
 
   const c = cuenta.datos;
   const cat = catalogo.datos;
@@ -132,7 +142,7 @@ export default function CuentaPage() {
     <div className="flex h-[calc(100dvh-56px)] flex-col pb-14 lg:pb-0">
       {/* ------------------------------------------------------------ Cabecera de la cuenta */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-gold/10 bg-[#04110c] px-3 py-2.5 sm:px-5">
-        <Link href={c.tipo === 'barra' && !c.mesa_id ? '/admin/barra' : '/admin/salon'} className="grid h-9 w-9 place-items-center rounded-xl border border-gold/20 text-smoke hover:text-ivory" aria-label="Volver"><ArrowLeft size={17} /></Link>
+        <Link href={usuario?.rol === 'mesonero' ? '/admin/mesero' : c.tipo === 'barra' && !c.mesa_id ? '/admin/barra' : '/admin/salon'} className="grid h-9 w-9 place-items-center rounded-xl border border-gold/20 text-smoke hover:text-ivory" aria-label="Volver"><ArrowLeft size={17} /></Link>
         <div className="min-w-0">
           <p className="font-display text-xl leading-tight">{tituloCuenta(c)} {c.nombre_cliente && <span className="text-base text-smoke">· {c.nombre_cliente}</span>}</p>
           <p className="flex flex-wrap items-center gap-x-3 text-xs text-smoke">
@@ -142,6 +152,7 @@ export default function CuentaPage() {
           </p>
         </div>
         {!abierta && <Insignia color={c.estado === 'pagada' ? 'azul' : 'rojo'} className="!text-sm">{c.estado === 'pagada' ? 'Cuenta pagada' : `Anulada: ${c.anulada_motivo}`}</Insignia>}
+        {abierta && c.cobro_solicitado_en && <Insignia color="azul" className="!text-sm"><Wallet size={13} /> En caja desde {soloHora(c.cobro_solicitado_en)}</Insignia>}
         {listos > 0 && abierta && <Insignia color="oro" className="animate-pulse !text-sm"><BellRing size={13} /> {listos} listos para llevar a la mesa</Insignia>}
         <div className="ml-auto flex gap-1 lg:hidden">
           {(['carta', 'cuenta'] as const).map((v) => (
@@ -323,7 +334,15 @@ export default function CuentaPage() {
                   ? <Boton variante="verde" tam="lg" className="flex-1" cargando={ocupado} onClick={() => accion(() => adm(`/cuentas/${c.id}/cerrar`, { method: 'POST' }), 'Cuenta cerrada')}><Check size={18} /> Cerrar cuenta</Boton>
                   : <Boton variante="oro" tam="lg" className="flex-1" disabled={c.total <= 0 || borrador.length > 0} onClick={() => setCobrando(true)} title={borrador.length ? 'Envía primero lo pendiente' : ''}><Wallet size={18} /> Cobrar</Boton>
               )}
-              {abierta && !puedeCobrar && <p className="flex-1 self-center text-xs text-smoke">El cobro lo hace caja o barra.</p>}
+              {abierta && !puedeCobrar && (c.cobro_solicitado_en ? (
+                <Boton tam="lg" className="flex-1 !border-sky-400/50 !text-sky-200" cargando={ocupado} onClick={() => accion(() => adm(`/cuentas/${c.id}/solicitar-cobro`, { method: 'DELETE' }), 'Cuenta retirada de caja')}>
+                  <Wallet size={18} /> En caja · retirar
+                </Boton>
+              ) : (
+                <Boton variante="oro" tam="lg" className="flex-1" disabled={c.total <= 0 || borrador.length > 0} onClick={() => setACaja(true)} title={borrador.length ? 'Envía primero lo pendiente' : ''}>
+                  <Wallet size={18} /> Pasar a caja
+                </Boton>
+              ))}
               <Boton tam="lg" onClick={() => window.print()} aria-label="Imprimir"><Printer size={18} /></Boton>
               {abierta && (
                 <div className="relative">
@@ -359,6 +378,8 @@ export default function CuentaPage() {
           onAgregar={(b) => { setBorrador([...borrador, b]); setConfig(null); }}
         />
       )}
+
+      {aCaja && <PasarACaja cuentaId={c.id} onCerrar={() => setACaja(false)} onEnviada={(nueva) => { cuenta.setDatos(nueva); setACaja(false); }} />}
 
       {cobrando && <Cobro cuenta={c} tasa={cat.tasa} onCerrar={() => setCobrando(false)} onPagado={(nueva) => cuenta.setDatos(nueva)} />}
 

@@ -4,6 +4,7 @@ import { ArrowDownLeft, ArrowUpRight, Lock, Unlock } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Area, Boton, Campo, Cargando, Encabezado, ErrorCaja, Input, InputNum, Insignia, Modal, Pestanas, Select, Tabla, Tarjeta, Vacio, useAvisos, useDatos } from '@/components/admin/ui';
+import { ColaCobro } from '@/components/admin/pos/ColaCobro';
 import { adm } from '@/lib/admin/api';
 import { MONEDAS, type Moneda, type PorMoneda, dinero, fechaHora, soloHora } from '@/lib/admin/moneda';
 
@@ -22,7 +23,8 @@ const cero = (): Record<Moneda, number | null> => ({ COP: null, USD: null, VES: 
 export default function CajaPage() {
   const cajas = useDatos<Caja[]>('/caja', 30_000);
   const [cajaId, setCajaId] = useState<number | null>(null);
-  const [vista, setVista] = useState<'turno' | 'historial'>('turno');
+  const [vista, setVista] = useState<'cola' | 'turno' | 'historial'>('cola');
+  const [enCola, setEnCola] = useState<number | undefined>(undefined);
   const caja = cajas.datos?.find((c) => c.id === cajaId) ?? cajas.datos?.[0];
 
   useEffect(() => {
@@ -34,9 +36,20 @@ export default function CajaPage() {
 
   return (
     <div className="max-w-6xl">
-      <Encabezado titulo="Caja" descripcion="Cada punto de cobro lleva su propio turno: fondo inicial, lo cobrado en efectivo, ingresos, egresos y el conteo al cerrar.">
-        <Pestanas valor={vista} onCambio={setVista} opciones={[{ valor: 'turno', etiqueta: 'Turno actual' }, { valor: 'historial', etiqueta: 'Cierres anteriores' }]} />
+      <Encabezado titulo="Caja" descripcion="Las cuentas que pasan los mesoneros llegan a «Por cobrar». Cada punto de cobro lleva su turno con fondo, ingresos, egresos y conteo al cerrar.">
+        <Pestanas valor={vista} onCambio={setVista} opciones={[{ valor: 'cola', etiqueta: 'Por cobrar', cuenta: enCola }, { valor: 'turno', etiqueta: 'Turno actual' }, { valor: 'historial', etiqueta: 'Cierres anteriores' }]} />
       </Encabezado>
+
+      {vista === 'cola' && (
+        <>
+          {cajas.datos?.every((c) => !c.sesion) && (
+            <button onClick={() => setVista('turno')} className="mb-4 flex w-full items-center gap-3 rounded-2xl border border-gold/40 bg-gold/10 p-3 text-left text-sm text-gold-light">
+              <Lock size={18} className="shrink-0" /> No hay ninguna caja abierta: abre el turno para poder cobrar.
+            </button>
+          )}
+          <ColaCobro onCambio={setEnCola} />
+        </>
+      )}
 
       {vista === 'turno' && (
         <>
