@@ -7,13 +7,13 @@ import { Cargando, Dato, Encabezado, ErrorCaja, Input, Insignia, Pestanas, Tabla
 import { type Moneda, dinero, fechaHora, jornadaHoy } from '@/lib/admin/moneda';
 
 type Cuenta = {
-  id: number; numero: string; tipo: string; estado: 'abierta' | 'pagada' | 'anulada'; moneda: Moneda; personas: number; nombre_cliente: string | null;
+  id: number; numero: string; tipo: string; estado: 'abierta' | 'pagada' | 'anulada' | 'fiada'; moneda: Moneda; cliente: string | null; fiado_monto: number | null; fiado_motivo: string | null; personas: number; nombre_cliente: string | null;
   total: number; pagado: number; total_usd: number; abierta_en: string; cerrada_en: string | null; mesa_numero: number | null; zona: string | null; mesonero: string | null; items: number;
 };
 
 export default function VentasPage() {
   const router = useRouter();
-  const [estado, setEstado] = useState<'pagada' | 'abierta' | 'anulada'>('pagada');
+  const [estado, setEstado] = useState<'pagada' | 'abierta' | 'fiada' | 'anulada'>('pagada');
   const [desde, setDesde] = useState(jornadaHoy());
   const [hasta, setHasta] = useState(jornadaHoy());
   const [q, setQ] = useState('');
@@ -26,7 +26,7 @@ export default function VentasPage() {
   return (
     <div>
       <Encabezado titulo="Ventas" descripcion="Todas las cuentas. Toca una para ver el detalle, los pagos y reimprimir.">
-        <Pestanas valor={estado} onCambio={setEstado} opciones={[{ valor: 'pagada', etiqueta: 'Cobradas' }, { valor: 'abierta', etiqueta: 'Abiertas' }, { valor: 'anulada', etiqueta: 'Anuladas' }]} />
+        <Pestanas valor={estado} onCambio={setEstado} opciones={[{ valor: 'pagada', etiqueta: 'Cobradas' }, { valor: 'abierta', etiqueta: 'Abiertas' }, { valor: 'fiada', etiqueta: 'Fiadas' }, { valor: 'anulada', etiqueta: 'Anuladas' }]} />
       </Encabezado>
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
@@ -65,7 +65,9 @@ export default function VentasPage() {
             { titulo: 'Total', celda: (c) => <b className="font-medium">{dinero(c.total, c.moneda)}</b>, alinear: 'der' },
             { titulo: '', celda: (c) => (
               c.estado === 'abierta' ? (c.pagado > 0 ? <Insignia color="oro">Abonado {dinero(c.pagado, c.moneda)}</Insignia> : <Insignia color="verde">Abierta</Insignia>)
-              : c.estado === 'pagada' ? <Insignia color="azul">Pagada</Insignia> : <Insignia color="rojo">Anulada</Insignia>
+              : c.estado === 'pagada' ? <Insignia color="azul">Pagada</Insignia>
+              : c.estado === 'fiada' ? <Insignia color="oro">{c.fiado_motivo === 'se_fue' ? 'Se fue' : 'Fiada'} · {dinero(c.fiado_monto, c.moneda)} · {c.cliente}</Insignia>
+              : <Insignia color="rojo">Anulada</Insignia>
             ) },
           ]}
         />

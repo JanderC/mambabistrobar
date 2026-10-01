@@ -43,7 +43,8 @@ export type PagoCuenta = {
 };
 
 export type Cuenta = {
-  id: number; numero: string; tipo: 'mesa' | 'barra' | 'llevar'; estado: 'abierta' | 'pagada' | 'anulada'; moneda: Moneda; personas: number; nombre_cliente: string | null;
+  id: number; numero: string; tipo: 'mesa' | 'barra' | 'llevar'; estado: 'abierta' | 'pagada' | 'anulada' | 'fiada'; moneda: Moneda; personas: number; nombre_cliente: string | null;
+  cliente_id: number | null; cliente: string | null; fiado_monto: number | null; fiado_motivo: 'fiado' | 'se_fue' | null;
   mesa_id: number | null; mesa_numero: number | null; mesa_nombre: string | null; mesa_capacidad: number | null; mesa_tipo: string | null; zona: string | null; asiento: number | null;
   mesonero: string | null; mesonero_id: number | null; cobro_solicitado_en: string | null; cobro_nota: string | null; servicio_pct: number; descuento: number; descuento_motivo: string | null; subtotal: number; servicio: number; total: number; pagado: number;
   saldo: number; equivalentes: { total: PorMoneda; saldo: PorMoneda }; notas: string | null; abierta_en: string; cerrada_en: string | null; anulada_motivo: string | null;

@@ -11,7 +11,7 @@ import { MONEDAS, type Moneda, type PorMoneda, dinero, fechaHora, soloHora } fro
 type Caja = { id: number; nombre: string; descripcion: string | null; sesion: { id: number; fecha_apertura: string; usuario: string } | null; arrastre: { usd: number; cop: number; ves: number; fecha_cierre: string } | null };
 type Resumen = {
   sesion: Record<string, any>;
-  efectivo_recibido: PorMoneda; vueltos: PorMoneda; ingresos: PorMoneda; egresos: PorMoneda; esperado: PorMoneda;
+  efectivo_recibido: PorMoneda; vueltos: PorMoneda; abonos_credito: PorMoneda; ingresos: PorMoneda; egresos: PorMoneda; esperado: PorMoneda;
   por_metodo: { metodo: string; es_efectivo: boolean; moneda: Moneda; total: number; total_usd: number; pagos: number }[];
   cuentas_cobradas: number; total_usd: number;
 };
@@ -175,6 +175,7 @@ function Turno({ sesionId, alCambiar }: { sesionId: number; alCambiar: () => voi
               <div className="flex justify-between"><dt>Fondo inicial</dt><dd>{dinero(r.sesion[`fondo_inicial_${m.toLowerCase()}`], m)}</dd></div>
               <div className="flex justify-between"><dt>+ Efectivo recibido</dt><dd className="text-venom">{dinero(r.efectivo_recibido[m], m)}</dd></div>
               <div className="flex justify-between"><dt>− Vueltos entregados</dt><dd className="text-red-300">{dinero(r.vueltos[m], m)}</dd></div>
+              <div className="flex justify-between"><dt>+ Abonos de créditos</dt><dd className="text-venom">{dinero(r.abonos_credito[m], m)}</dd></div>
               <div className="flex justify-between"><dt>+ Ingresos</dt><dd>{dinero(r.ingresos[m], m)}</dd></div>
               <div className="flex justify-between"><dt>− Egresos</dt><dd>{dinero(r.egresos[m], m)}</dd></div>
             </dl>

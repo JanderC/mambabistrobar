@@ -1,5 +1,5 @@
 import {
-  type LucideIcon, Armchair, BarChart3, Bell, Beer, Boxes, CalendarCheck, ChefHat, CreditCard, Home, LayoutGrid, Megaphone,
+  type LucideIcon, Armchair, BarChart3, Bell, Beer, Boxes, CalendarCheck, ChefHat, CreditCard, HandCoins, Home, LayoutGrid, Megaphone,
   PartyPopper, Receipt, Settings, ShieldCheck, Sparkles, TabletSmartphone, TrendingUp, UserCog, Users, UtensilsCrossed, Wallet,
 } from 'lucide-react';
 
@@ -45,6 +45,7 @@ export const AREAS: Area[] = [
       { href: '/admin/barra', nombre: 'Barra', descripcion: 'Venta rápida: los clientes van cancelando', icono: Beer, roles: COBRO, claves: 'venta rapida taburete tobo cerveza' },
       { href: '/admin/comandas', nombre: 'Comandas', descripcion: 'Pantalla de cocina y barra con los pedidos por preparar', icono: ChefHat, roles: [...SERVICIO, 'cocina'], claves: 'cocina kds pedidos' },
       { href: '/admin/caja', nombre: 'Caja', descripcion: 'Apertura, ingresos, egresos y cierre con conteo', icono: Wallet, roles: COBRO, claves: 'arqueo cierre fondo efectivo' },
+      { href: '/admin/creditos', nombre: 'Por cobrar', descripcion: 'Clientes que fiaron o se fueron sin pagar, su deuda y las mesas con saldo', icono: HandCoins, roles: COBRO, claves: 'creditos fiado deuda deben cobrar abonos cartera se fue' },
       { href: '/admin/ventas', nombre: 'Ventas', descripcion: 'Historial de cuentas cobradas, abiertas y anuladas', icono: Receipt, roles: ['gerente', 'cajero', 'barra'], claves: 'cuentas facturas tickets historial' },
     ],
   },

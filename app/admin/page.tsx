@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, ArrowRight, CalendarCheck, ChefHat, Lock, Martini, PartyPopper, Unlock, Users } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CalendarCheck, ChefHat, HandCoins, Lock, Martini, PartyPopper, Unlock, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
@@ -12,6 +12,7 @@ import { type Moneda, type Tasa, dinero, fechaHora, numero } from '@/lib/admin/m
 type Tablero = {
   moneda: Moneda; tasa: Tasa | null;
   ventas: { total: number; usd: number; cuentas: number; ticket_promedio: number; por_cobrar: number; por_hora: { hora: string; total: number }[] } | null;
+  creditos: { total: number; clientes: number } | null;
   cuentas_abiertas: number; personas_con_cuenta: number; capacidad: number;
   top_productos: { nombre: string; cantidad: number }[]; stock_bajo: number;
   reservas_hoy: { pendientes: number; confirmadas: number; personas: number };
@@ -88,6 +89,10 @@ export default function InicioPage() {
               <span className="flex gap-1">{Number(t.reservas_hoy.pendientes) > 0 && <Insignia color="oro">{t.reservas_hoy.pendientes} por confirmar</Insignia>}<Insignia color="azul">{t.reservas_hoy.confirmadas} confirmadas</Insignia></span></Link></li>
             <li><Link href="/admin/reservas" className="flex items-center justify-between rounded-xl p-2 hover:bg-white/5">
               <span className="flex items-center gap-2"><Users size={16} className="text-smoke" /> Personas esperadas por reserva</span><b>{t.reservas_hoy.personas}</b></Link></li>
+            {t.creditos && (
+              <li><Link href="/admin/creditos" className="flex items-center justify-between rounded-xl p-2 hover:bg-white/5">
+                <span className="flex items-center gap-2"><HandCoins size={16} className={t.creditos.total ? 'text-red-300' : 'text-smoke'} /> Clientes que deben ({t.creditos.clientes})</span><b className={t.creditos.total ? 'text-red-300' : ''}>{dinero(t.creditos.total, t.moneda)}</b></Link></li>
+            )}
             <li><Link href="/admin/inventario" className="flex items-center justify-between rounded-xl p-2 hover:bg-white/5">
               <span className="flex items-center gap-2"><AlertTriangle size={16} className={t.stock_bajo ? 'text-red-300' : 'text-smoke'} /> Insumos en stock bajo</span><Insignia color={t.stock_bajo ? 'rojo' : 'gris'}>{t.stock_bajo}</Insignia></Link></li>
           </ul>

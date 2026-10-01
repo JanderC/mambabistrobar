@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, Ban, BellRing, Check, ChefHat, MoreHorizontal, Percent, Printer, Search, Send, Trash2, Users, Wallet, X } from 'lucide-react';
+import { ArrowLeft, Ban, BellRing, Check, ChefHat, HandCoins, MoreHorizontal, Percent, Printer, Search, Send, Trash2, Users, Wallet, X } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -8,6 +8,7 @@ import { useSesion } from '@/components/admin/Sesion';
 import { Cobro } from '@/components/admin/pos/Cobro';
 import { PasarACaja } from '@/components/admin/pos/PasarACaja';
 import { Configurador } from '@/components/admin/pos/Configurador';
+import { Fiar } from '@/components/admin/pos/Fiar';
 import { type Borrador, type Catalogo, type CategoriaCat, type Cuenta, type ItemCuenta, type ProductoCat, tituloCuenta } from '@/components/admin/pos/tipos';
 import { Area, Boton, Campo, Cargando, ErrorCaja, Input, InputNum, Insignia, Interruptor, Modal, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
@@ -42,6 +43,7 @@ export default function CuentaPage() {
   const [vistaMovil, setVistaMovil] = useState<'carta' | 'cuenta'>('carta');
   const [ocupado, setOcupado] = useState(false);
   const [aCaja, setACaja] = useState(false);
+  const [fiando, setFiando] = useState(false);
 
   // En vivo: si barra/cocina marcan algo listo o caja cobra, esta pantalla se entera al instante
   useVivo((e) => {
@@ -151,7 +153,11 @@ export default function CuentaPage() {
             <span>{c.mesonero}</span><span>{abierta ? `abierta hace ${hace(c.abierta_en)}` : fechaHora(c.cerrada_en)}</span>
           </p>
         </div>
-        {!abierta && <Insignia color={c.estado === 'pagada' ? 'azul' : 'rojo'} className="!text-sm">{c.estado === 'pagada' ? 'Cuenta pagada' : `Anulada: ${c.anulada_motivo}`}</Insignia>}
+        {!abierta && (
+          <Insignia color={c.estado === 'pagada' ? 'azul' : c.estado === 'fiada' ? 'oro' : 'rojo'} className="!text-sm">
+            {c.estado === 'pagada' ? 'Cuenta pagada' : c.estado === 'fiada' ? `${c.fiado_motivo === 'se_fue' ? 'Se fue sin pagar' : 'Fiada'} · ${dinero(c.fiado_monto, moneda)} a nombre de ${c.cliente ?? 'cliente'}` : `Anulada: ${c.anulada_motivo}`}
+          </Insignia>
+        )}
         {abierta && c.cobro_solicitado_en && <Insignia color="azul" className="!text-sm"><Wallet size={13} /> En caja desde {soloHora(c.cobro_solicitado_en)}</Insignia>}
         {listos > 0 && abierta && <Insignia color="oro" className="animate-pulse !text-sm"><BellRing size={13} /> {listos} listos para llevar a la mesa</Insignia>}
         <div className="ml-auto flex gap-1 lg:hidden">
@@ -220,7 +226,7 @@ export default function CuentaPage() {
           ) : (
             <div className="grid flex-1 place-items-center p-8 text-center text-smoke">
               <div>
-                <p className="font-display text-2xl text-ivory">Esta cuenta ya está {c.estado}</p>
+                <p className="font-display text-2xl text-ivory">Esta cuenta ya está {c.estado === 'fiada' ? 'cerrada a crédito' : c.estado}</p>
                 <p className="mt-2 text-sm">Puedes revisar el detalle y reimprimir el ticket.</p>
                 <Boton className="mt-5" onClick={() => router.push('/admin/salon')}>Volver al salón</Boton>
               </div>
@@ -354,6 +360,11 @@ export default function CuentaPage() {
                         <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-white/5" onClick={() => { setMenu(false); setAjustes({ personas: c.personas, nombre_cliente: c.nombre_cliente ?? '', servicio_pct: c.servicio_pct, descuento: c.descuento, descuento_motivo: c.descuento_motivo ?? '', notas: c.notas ?? '' }); }}>
                           <Percent size={15} className="text-gold" /> Servicio, descuento y datos
                         </button>
+                        {puedeCobrar && c.saldo > 0 && (
+                          <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm hover:bg-white/5 disabled:opacity-40" disabled={borrador.length > 0} onClick={() => { setMenu(false); setFiando(true); }}>
+                            <HandCoins size={15} className="text-gold" /> Fiar o «se fue sin pagar»
+                          </button>
+                        )}
                         {es('gerente', 'cajero') && (
                           <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-red-300 hover:bg-red-500/10" onClick={() => { setMenu(false); setAnular('cuenta'); }}>
                             <Ban size={15} /> Anular cuenta completa
@@ -380,6 +391,8 @@ export default function CuentaPage() {
       )}
 
       {aCaja && <PasarACaja cuentaId={c.id} onCerrar={() => setACaja(false)} onEnviada={(nueva) => { cuenta.setDatos(nueva); setACaja(false); }} />}
+
+      {fiando && <Fiar cuenta={c} onCerrar={() => setFiando(false)} onFiada={(nueva) => { cuenta.setDatos(nueva); setFiando(false); }} />}
 
       {cobrando && <Cobro cuenta={c} tasa={cat.tasa} onCerrar={() => setCobrando(false)} onPagado={(nueva) => cuenta.setDatos(nueva)} />}
 
@@ -443,7 +456,7 @@ function Ticket({ cuenta: c }: { cuenta: Cuenta }) {
       <p style={{ textAlign: 'center', fontSize: 16, fontWeight: 700, letterSpacing: 4 }}>MAMBA</p>
       <p style={{ textAlign: 'center', fontSize: 10, letterSpacing: 2 }}>BISTRO BAR 2.0</p>
       <hr />
-      <p>{c.estado === 'pagada' ? 'COMPROBANTE' : 'PRE-CUENTA'} {c.numero}</p>
+      <p>{c.estado === 'pagada' ? 'COMPROBANTE' : c.estado === 'fiada' ? 'CUENTA A CRÉDITO' : 'PRE-CUENTA'} {c.numero}</p>
       <p>{tituloCuenta(c)}{c.nombre_cliente ? ` · ${c.nombre_cliente}` : ''}</p>
       <p>{fechaHora(c.cerrada_en ?? new Date().toISOString())} · Atendió: {c.mesonero ?? ''}</p>
       <hr />
@@ -462,6 +475,7 @@ function Ticket({ cuenta: c }: { cuenta: Cuenta }) {
       {c.pagos.length > 0 && <hr />}
       {c.pagos.map((p) => <p key={p.id} style={{ display: 'flex', justifyContent: 'space-between' }}><span>{p.metodo}</span><span>{dinero(p.monto, p.moneda)}</span></p>)}
       {c.estado === 'abierta' && c.pagado > 0 && <p style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>SALDO</span><span>{dinero(c.saldo, c.moneda)}</span></p>}
+      {c.estado === 'fiada' && <p style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}><span>QUEDA DEBIENDO ({c.cliente})</span><span>{dinero(c.fiado_monto, c.moneda)}</span></p>}
       <hr />
       <p style={{ textAlign: 'center' }}>¡Gracias por tu visita!</p>
     </div>
