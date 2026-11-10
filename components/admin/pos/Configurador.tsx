@@ -18,7 +18,7 @@ type Props = {
 };
 
 function Contador({ valor, onCambio, max, min = 0, grande = false }: { valor: number; onCambio: (n: number) => void; max?: number; min?: number; grande?: boolean }) {
-  const cls = `grid place-items-center rounded-full border border-gold/30 text-gold transition hover:bg-gold/15 disabled:opacity-30 ${grande ? 'h-11 w-11' : 'h-8 w-8'}`;
+  const cls = `grid place-items-center rounded-full border border-gold/30 text-gold transition hover:bg-gold/15 disabled:opacity-30 ${grande ? 'h-12 w-12' : 'h-10 w-10'}`;
   return (
     <div className="flex items-center gap-2">
       <button type="button" className={cls} disabled={valor <= min} onClick={() => onCambio(valor - 1)} aria-label="Menos"><Minus size={grande ? 18 : 14} /></button>
@@ -192,9 +192,9 @@ export function Configurador({ producto, categoria, moneda, asientos, asientoIni
           <section>
             <h3 className="mb-2 text-xs tracking-wider text-gold uppercase">¿Para qué puesto? <span className="text-smoke normal-case">· sirve para dividir la cuenta</span></h3>
             <div className="flex flex-wrap gap-1.5">
-              <button onClick={() => setAsiento(null)} className={`h-9 rounded-full px-4 text-sm ${asiento == null ? 'bg-gold font-semibold text-void' : 'border border-gold/20 text-smoke'}`}>Toda la mesa</button>
+              <button onClick={() => setAsiento(null)} className={`h-11 rounded-full px-4 text-sm ${asiento == null ? 'bg-gold font-semibold text-void' : 'border border-gold/20 text-smoke'}`}>Toda la mesa</button>
               {Array.from({ length: asientos }, (_, i) => i + 1).map((n) => (
-                <button key={n} onClick={() => setAsiento(n)} className={`h-9 w-9 rounded-full text-sm ${asiento === n ? 'bg-gold font-semibold text-void' : 'border border-gold/20 text-smoke'}`}>{n}</button>
+                <button key={n} onClick={() => setAsiento(n)} className={`h-11 w-11 rounded-full text-sm ${asiento === n ? 'bg-gold font-semibold text-void' : 'border border-gold/20 text-smoke'}`}>{n}</button>
               ))}
             </div>
           </section>

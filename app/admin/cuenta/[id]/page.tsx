@@ -1,9 +1,9 @@
 'use client';
 
-import { ArrowLeft, Ban, BellRing, Check, ChefHat, HandCoins, MoreHorizontal, Percent, Printer, Search, Send, Trash2, Users, Wallet, X } from 'lucide-react';
+import { ArrowLeft, Ban, BellRing, Check, ChefHat, ChevronRight, HandCoins, Martini, Minus, MoreHorizontal, Percent, Plus, Printer, Search, Send, Trash2, Users, Wallet, X } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSesion } from '@/components/admin/Sesion';
 import { Cobro } from '@/components/admin/pos/Cobro';
 import { PasarACaja } from '@/components/admin/pos/PasarACaja';
@@ -82,6 +82,21 @@ export default function CuentaPage() {
     });
   };
 
+  /** −/+ directo sobre lo que está por enviar; en 0 se quita la línea */
+  const cambiarCantidad = (clave: string, delta: number) =>
+    setBorrador((b) => b.flatMap((x) => (x.clave !== clave ? [x] : x.cantidad + delta <= 0 ? [] : [{ ...x, cantidad: x.cantidad + delta }])));
+
+  /** A qué estación va cada producto (para que el mesero vea si sale de cocina o de barra) */
+  const estacionDe = useMemo(() => new Map((cat?.categorias ?? []).flatMap((x) => x.productos.map((p) => [p.id, x.estacion] as const))), [cat]);
+
+  // Que no se pierda un pedido sin enviar al cerrar o recargar la pestaña
+  useEffect(() => {
+    if (!borrador.length) return;
+    const k = (e: BeforeUnloadEvent) => e.preventDefault();
+    addEventListener('beforeunload', k);
+    return () => removeEventListener('beforeunload', k);
+  }, [borrador.length]);
+
   const enviar = async () => {
     if (!c || !borrador.length) return;
     setEnviando(true);
@@ -139,12 +154,15 @@ export default function CuentaPage() {
   const visibles = c.items.filter((i) => i.estado !== 'anulado');
   const anulados = c.items.filter((i) => i.estado === 'anulado');
   const listos = visibles.filter((i) => i.estado === 'listo').length;
+  const unidadesBorrador = borrador.reduce((s, b) => s + b.cantidad, 0);
+  const textoEnviar = esDirecto ? 'Agregar a la cuenta' : 'Enviar pedido';
 
   return (
     <div className="flex h-[calc(100dvh-56px)] flex-col pb-14 lg:pb-0">
       {/* ------------------------------------------------------------ Cabecera de la cuenta */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-gold/10 bg-[#04110c] px-3 py-2.5 sm:px-5">
-        <Link href={usuario?.rol === 'mesonero' ? '/admin/mesero' : c.tipo === 'barra' && !c.mesa_id ? '/admin/barra' : '/admin/salon'} className="grid h-9 w-9 place-items-center rounded-xl border border-gold/20 text-smoke hover:text-ivory" aria-label="Volver"><ArrowLeft size={17} /></Link>
+        <Link href={usuario?.rol === 'mesonero' ? '/admin/mesero' : c.tipo === 'barra' && !c.mesa_id ? '/admin/barra' : '/admin/salon'} onClick={(e) => { if (borrador.length && !confirm(`Tienes ${unidadesBorrador} producto(s) sin enviar. ¿Salir y descartarlos?`)) e.preventDefault(); }}
+          className="grid h-11 w-11 place-items-center rounded-xl border border-gold/20 text-smoke hover:text-ivory" aria-label="Volver"><ArrowLeft size={19} /></Link>
         <div className="min-w-0">
           <p className="font-display text-xl leading-tight">{tituloCuenta(c)} {c.nombre_cliente && <span className="text-base text-smoke">· {c.nombre_cliente}</span>}</p>
           <p className="flex flex-wrap items-center gap-x-3 text-xs text-smoke">
@@ -160,10 +178,11 @@ export default function CuentaPage() {
         )}
         {abierta && c.cobro_solicitado_en && <Insignia color="azul" className="!text-sm"><Wallet size={13} /> En caja desde {soloHora(c.cobro_solicitado_en)}</Insignia>}
         {listos > 0 && abierta && <Insignia color="oro" className="animate-pulse !text-sm"><BellRing size={13} /> {listos} listos para llevar a la mesa</Insignia>}
-        <div className="ml-auto flex gap-1 lg:hidden">
+        <div className="ml-auto flex gap-1 rounded-full border border-gold/15 p-1 lg:hidden">
           {(['carta', 'cuenta'] as const).map((v) => (
-            <button key={v} onClick={() => setVistaMovil(v)} className={`rounded-full px-3 py-1.5 text-xs capitalize ${vistaMovil === v ? 'bg-gold font-semibold text-void' : 'border border-gold/20 text-smoke'}`}>
-              {v}{v === 'cuenta' && borrador.length > 0 && ` (${borrador.length})`}
+            <button key={v} onClick={() => setVistaMovil(v)} className={`flex h-10 items-center gap-1.5 rounded-full px-4 text-sm capitalize ${vistaMovil === v ? 'bg-gold font-semibold text-void' : 'text-smoke'}`}>
+              {v}
+              {v === 'cuenta' && unidadesBorrador > 0 && <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1 text-[11px] font-bold ${vistaMovil === v ? 'bg-void/25' : 'bg-gold text-void'}`}>{unidadesBorrador}</span>}
             </button>
           ))}
         </div>
@@ -181,9 +200,9 @@ export default function CuentaPage() {
                   {q && <button onClick={() => setQ('')} className="absolute top-1/2 right-3 -translate-y-1/2 text-smoke" aria-label="Limpiar"><X size={15} /></button>}
                 </label>
                 <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
-                  <button onClick={() => setCatId('todas')} className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm ${catId === 'todas' ? 'bg-gold font-semibold text-void' : 'border border-gold/15 text-smoke'}`}>Todo</button>
+                  <button onClick={() => setCatId('todas')} className={`h-10 shrink-0 rounded-full px-4 text-sm ${catId === 'todas' ? 'bg-gold font-semibold text-void' : 'border border-gold/15 text-smoke'}`}>Todo</button>
                   {cat.categorias.map((x) => (
-                    <button key={x.id} onClick={() => { setCatId(x.id); setQ(''); }} className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm whitespace-nowrap ${catId === x.id ? 'bg-gold font-semibold text-void' : 'border border-gold/15 text-smoke hover:text-ivory'}`}>
+                    <button key={x.id} onClick={() => { setCatId(x.id); setQ(''); }} className={`h-10 shrink-0 rounded-full px-4 text-sm whitespace-nowrap ${catId === x.id ? 'bg-gold font-semibold text-void' : 'border border-gold/15 text-smoke hover:text-ivory'}`}>
                       {x.icono} {x.nombre}
                     </button>
                   ))}
@@ -212,8 +231,8 @@ export default function CuentaPage() {
                       </button>
                       {esRapido(p) && !agotado && (categoria.adicionales.length > 0 || asientos > 0) && (
                         <button onClick={() => setConfig({ producto: p, categoria })} title="Adicionales, puesto y nota" aria-label={`Opciones de ${p.nombre}`}
-                          className="absolute top-1.5 right-1.5 grid h-7 w-7 place-items-center rounded-full bg-void/70 text-smoke ring-1 ring-gold/20 hover:text-gold">
-                          <MoreHorizontal size={14} />
+                          className="absolute top-1 right-1 grid h-10 w-10 place-items-center rounded-full bg-void/70 text-smoke ring-1 ring-gold/20 hover:text-gold">
+                          <MoreHorizontal size={17} />
                         </button>
                       )}
                       </div>
@@ -222,6 +241,23 @@ export default function CuentaPage() {
                 </div>
                 {!productos.length && <p className="py-16 text-center text-smoke">No hay productos con “{q}”.</p>}
               </div>
+
+              {/* Tablet en vertical / celular: el pedido siempre a la vista y se envía sin cambiar de pantalla */}
+              {borrador.length > 0 && (
+                <div className="flex items-center gap-2 border-t-2 border-gold/40 bg-[#04110c] p-2.5 lg:hidden">
+                  <button onClick={() => setVistaMovil('cuenta')} className="flex h-14 min-w-0 flex-1 items-center gap-3 rounded-2xl border border-gold/25 px-3 text-left active:bg-white/5">
+                    <span className="grid h-9 min-w-9 place-items-center rounded-full bg-gold px-2 font-display text-lg font-medium text-void">{unidadesBorrador}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm">{borrador.map((b) => `${b.cantidad} ${b.producto.nombre}`).join(' · ')}</span>
+                      <span className="block text-xs text-gold">Ver y ajustar el pedido</span>
+                    </span>
+                    <ChevronRight size={18} className="shrink-0 text-smoke" />
+                  </button>
+                  <Boton variante="oro" className="h-14 shrink-0 px-5 text-base" cargando={enviando} onClick={enviar}>
+                    {esDirecto ? <Check size={19} /> : <Send size={19} />} <span className="hidden sm:inline">{textoEnviar} ·</span> {dinero(totalBorrador, moneda)}
+                  </Boton>
+                </div>
+              )}
             </>
           ) : (
             <div className="grid flex-1 place-items-center p-8 text-center text-smoke">
@@ -241,32 +277,43 @@ export default function CuentaPage() {
             {borrador.length > 0 && (
               <div className="border-b-2 border-dashed border-gold/40 bg-gold/5 p-3">
                 <p className="mb-2 flex items-center justify-between text-xs tracking-wider text-gold uppercase">
-                  Por enviar <button onClick={() => setBorrador([])} className="text-smoke normal-case hover:text-red-300">Vaciar</button>
+                  Por enviar · {unidadesBorrador} {unidadesBorrador === 1 ? 'producto' : 'productos'}
+                  <button onClick={() => confirm('¿Vaciar todo lo que está por enviar?') && setBorrador([])} className="px-2 py-1 text-smoke normal-case hover:text-red-300">Vaciar</button>
                 </p>
                 <ul className="space-y-2">
-                  {borrador.map((b) => (
-                    <li key={b.clave} className="flex gap-2 text-sm">
-                      <span className="font-display text-lg leading-tight text-gold-light">{b.cantidad}×</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="leading-tight font-medium">{b.producto.nombre} {b.producto.variantes.length > 1 && <span className="font-normal text-smoke">· {b.variante.presentacion}</span>}</p>
-                        {b.detalle.map((d) => <p key={d} className={`text-xs ${d.startsWith('SIN') ? 'text-red-300' : d.startsWith('+') ? 'text-venom' : 'text-smoke'}`}>{d}</p>)}
-                        {(b.asiento || b.notas) && <p className="text-xs text-smoke">{b.asiento && `Puesto ${b.asiento}`}{b.asiento && b.notas && ' · '}{b.notas && `📝 ${b.notas}`}</p>}
-                      </div>
-                      {asientos > 0 && (
-                        <select value={b.asiento ?? ''} onChange={(e) => setBorrador(borrador.map((x) => (x.clave === b.clave ? { ...x, asiento: e.target.value ? Number(e.target.value) : null } : x)))}
-                          className="h-7 rounded-lg border border-gold/20 bg-void px-1 text-[11px] text-smoke" aria-label="Puesto">
-                          <option value="">Mesa</option>
-                          {Array.from({ length: asientos }, (_, n) => <option key={n + 1} value={n + 1}>P{n + 1}</option>)}
-                        </select>
-                      )}
-                      <span className="tabular-nums">{dinero(b.unitario * b.cantidad, moneda)}</span>
-                      <button onClick={() => setBorrador(borrador.filter((x) => x.clave !== b.clave))} className="text-smoke hover:text-red-300" aria-label="Quitar"><Trash2 size={15} /></button>
-                    </li>
-                  ))}
+                  {borrador.map((b) => {
+                    const cocina = estacionDe.get(b.producto.id) === 'cocina';
+                    return (
+                      <li key={b.clave} className="rounded-xl bg-void/40 p-2.5 text-sm">
+                        <div className="flex items-start gap-2">
+                          <span className="min-w-0 flex-1">
+                            <span className="block leading-tight font-medium">{b.producto.nombre} {b.producto.variantes.length > 1 && <span className="font-normal text-smoke">· {b.variante.presentacion}</span>}</span>
+                            <span className={`mt-0.5 inline-flex items-center gap-1 text-[11px] ${cocina ? 'text-gold' : 'text-venom'}`}>{cocina ? <ChefHat size={12} /> : <Martini size={12} />} {cocina ? 'Cocina' : 'Barra'}</span>
+                            {b.detalle.map((d) => <span key={d} className={`block text-xs ${d.startsWith('SIN') ? 'text-red-300' : d.startsWith('+') ? 'text-venom' : 'text-smoke'}`}>{d}</span>)}
+                            {b.notas && <span className="block text-xs text-smoke">📝 {b.notas}</span>}
+                          </span>
+                          <span className="font-display text-lg leading-tight text-gold-light tabular-nums">{dinero(b.unitario * b.cantidad, moneda)}</span>
+                        </div>
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="flex items-center rounded-full border border-gold/25">
+                            <button onClick={() => cambiarCantidad(b.clave, -1)} className="grid h-10 w-10 place-items-center rounded-full text-gold active:bg-gold/20" aria-label="Uno menos">{b.cantidad === 1 ? <Trash2 size={16} className="text-red-300" /> : <Minus size={17} />}</button>
+                            <span className="w-8 text-center font-display text-xl tabular-nums">{b.cantidad}</span>
+                            <button onClick={() => cambiarCantidad(b.clave, 1)} disabled={b.variante.disponibles != null && b.cantidad >= b.variante.disponibles} className="grid h-10 w-10 place-items-center rounded-full text-gold active:bg-gold/20 disabled:opacity-30" aria-label="Uno más"><Plus size={17} /></button>
+                          </div>
+                          {asientos > 0 && (
+                            <select value={b.asiento ?? ''} onChange={(e) => setBorrador(borrador.map((x) => (x.clave === b.clave ? { ...x, asiento: e.target.value ? Number(e.target.value) : null } : x)))}
+                              className="h-10 rounded-xl border border-gold/20 bg-void px-2 text-sm text-smoke" aria-label="Puesto">
+                              <option value="">Toda la mesa</option>
+                              {Array.from({ length: asientos }, (_, n) => <option key={n + 1} value={n + 1}>Puesto {n + 1}</option>)}
+                            </select>
+                          )}                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
                 <div className="mt-3 flex items-center gap-2">
-                  <Boton variante="oro" className="flex-1" cargando={enviando} onClick={enviar}>
-                    {esDirecto ? <Check size={16} /> : <Send size={16} />} {esDirecto ? 'Agregar a la cuenta' : 'Enviar pedido'} · {dinero(totalBorrador, moneda)}
+                  <Boton variante="oro" tam="lg" className="flex-1" cargando={enviando} onClick={enviar}>
+                    {esDirecto ? <Check size={18} /> : <Send size={18} />} {textoEnviar} · {dinero(totalBorrador, moneda)}
                   </Boton>
                 </div>
                 <div className="mt-2"><Interruptor activo={!esDirecto} onCambio={(v) => setDirecto(!v)} etiqueta={<span className="flex items-center gap-1 text-xs text-smoke"><ChefHat size={13} /> Pasar por comandas (cocina / barra)</span>} /></div>
