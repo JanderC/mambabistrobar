@@ -1,29 +1,33 @@
 'use client';
 
-import { AlertTriangle, ClipboardCheck, PackagePlus, Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, Beer, ChefHat, ClipboardCheck, PackagePlus, Pencil, Plus, Search, Trash2, Wine } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { CampoForm, type CampoCrud } from '@/components/admin/Crud';
 import { useSesion } from '@/components/admin/Sesion';
-import { Area, Boton, Campo, Cargando, Dato, Encabezado, ErrorCaja, Input, InputNum, Insignia, Interruptor, Modal, Pestanas, Select, Tabla, Tarjeta, useAvisos, useDatos } from '@/components/admin/ui';
+import { Area, Boton, Campo, Cargando, Dato, Encabezado, ErrorCaja, Input, InputNum, Interruptor, Modal, Pestanas, Select, Tabla, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
-import { dinero, fechaHora, numero } from '@/lib/admin/moneda';
+import { type Moneda, dinero, numero } from '@/lib/admin/moneda';
+
+type AreaInv = 'cocina' | 'barra' | 'general';
 
 type Insumo = {
-  id: number; codigo: string; nombre: string; categoria_insumo_id: number | null; categoria: string | null; icono: string | null; unidad: 'und' | 'ml' | 'g';
-  presentacion_compra: string | null; factor_compra: number; stock: number; stock_minimo: number; costo_unitario: number; moneda_costo: string;
-  recargo_seleccion: number; activo: boolean; bajo: boolean; valor: number;
+  id: number; codigo: string; nombre: string; categoria_insumo_id: number | null; categoria: string | null; icono: string | null; area: AreaInv;
+  unidad: 'und' | 'ml' | 'g'; presentacion_compra: string | null; factor_compra: number; stock: number; stock_minimo: number; costo_unitario: number;
+  moneda_costo: Moneda; recargo_seleccion: number; activo: boolean; bajo: boolean; valor: number;
 };
-type CatInsumo = { id: number; nombre: string; icono: string | null };
-type Mov = { id: number; fecha: string; insumo: string; unidad: string; tipo: string; cantidad: number; stock_resultante: number; proveedor: string | null; nota: string | null; usuario: string | null };
+type CatInsumo = { id: number; nombre: string; icono: string | null; area: AreaInv };
 
-const TIPO_MOV: Record<string, { nombre: string; color: 'verde' | 'oro' | 'rojo' | 'azul' | 'gris' }> = {
-  entrada: { nombre: 'Entrada', color: 'verde' }, venta: { nombre: 'Venta', color: 'gris' }, anulacion: { nombre: 'Anulación', color: 'azul' },
-  ajuste: { nombre: 'Conteo', color: 'oro' }, merma: { nombre: 'Merma', color: 'rojo' }, consumo_interno: { nombre: 'Consumo interno', color: 'rojo' },
-};
+/** Las tres bolsas en las que el dueño invierte y controla el inventario */
+const AREAS: { id: AreaInv; nombre: string; icono: typeof ChefHat; descripcion: string }[] = [
+  { id: 'cocina', nombre: 'Cocina', icono: ChefHat, descripcion: 'Carnes, panes, papa, salsas y todo lo que se prepara en cocina.' },
+  { id: 'barra', nombre: 'Barra', icono: Wine, descripcion: 'Licores, mixers y todo lo que se sirve en la barra.' },
+  { id: 'general', nombre: 'Inventario general', icono: Beer, descripcion: 'Bodega: cervezas y lo que se compra y guarda por caja.' },
+];
+const AREA = Object.fromEntries(AREAS.map((a) => [a.id, a])) as Record<AreaInv, (typeof AREAS)[number]>;
 
 /** "234 und · 9,8 cajas" */
 function stockLegible(i: Pick<Insumo, 'stock' | 'unidad' | 'factor_compra' | 'presentacion_compra'>) {
-  const base = `${numero(i.stock, i.unidad === 'und' ? 0 : 0)} ${i.unidad}`;
+  const base = `${numero(i.stock, 0)} ${i.unidad}`;
   if (!i.presentacion_compra || i.factor_compra <= 1) return base;
   return `${base} · ${numero(i.stock / i.factor_compra, 1)} × ${i.presentacion_compra}`;
 }
@@ -31,10 +35,9 @@ function stockLegible(i: Pick<Insumo, 'stock' | 'unidad' | 'factor_compra' | 'pr
 export default function InventarioPage() {
   const { es } = useSesion();
   const gestion = es('gerente');
-  const [tab, setTab] = useState<'existencias' | 'kardex'>('existencias');
+  const [area, setArea] = useState<AreaInv>('cocina');
   const insumos = useDatos<Insumo[]>('/inventario/insumos');
   const cats = useDatos<CatInsumo[]>('/inventario/categorias');
-  const kardex = useDatos<Mov[]>(tab === 'kardex' ? '/inventario/movimientos?limite=300' : null);
   const [cat, setCat] = useState<number | 'todas' | 'bajo'>('todas');
   const [q, setQ] = useState('');
   const [editar, setEditar] = useState<Record<string, any> | null>(null);
@@ -42,21 +45,48 @@ export default function InventarioPage() {
   const [ocupado, setOcupado] = useState(false);
   const avisos = useAvisos();
 
+  const todos = insumos.datos ?? [];
+
+  /** Lo invertido en cada área, a costo: la foto que se compara antes y después del fin de semana */
+  const porArea = useMemo(
+    () =>
+      AREAS.map((a) => {
+        const propios = todos.filter((i) => i.area === a.id && i.activo);
+        return {
+          ...a,
+          insumos: propios.length,
+          bajos: propios.filter((i) => i.bajo).length,
+          agotados: propios.filter((i) => i.stock <= 0).length,
+          valor: propios.reduce((s, i) => s + (i.moneda_costo === 'COP' ? Number(i.valor) : 0), 0),
+        };
+      }),
+    [todos],
+  );
+  const invertidoTotal = porArea.reduce((s, a) => s + a.valor, 0);
+
+  // Solo las categorías que tienen insumos en el área activa (más las declaradas de esa área)
+  const catsArea = useMemo(() => {
+    const conInsumos = new Set(todos.filter((i) => i.area === area).map((i) => i.categoria_insumo_id));
+    return (cats.datos ?? []).filter((c) => c.area === area || conInsumos.has(c.id));
+  }, [cats.datos, todos, area]);
+
   const lista = useMemo(() => {
     const n = q.trim().toLowerCase();
-    return (insumos.datos ?? []).filter(
-      (i) => (cat === 'todas' || (cat === 'bajo' ? i.bajo && i.activo : i.categoria_insumo_id === cat)) && (!n || `${i.nombre} ${i.codigo}`.toLowerCase().includes(n)),
+    return todos.filter(
+      (i) =>
+        i.area === area &&
+        (cat === 'todas' || (cat === 'bajo' ? i.bajo && i.activo : i.categoria_insumo_id === cat)) &&
+        (!n || `${i.nombre} ${i.codigo}`.toLowerCase().includes(n)),
     );
-  }, [insumos.datos, cat, q]);
+  }, [todos, area, cat, q]);
 
-  const activos = (insumos.datos ?? []).filter((i) => i.activo);
-  const bajos = activos.filter((i) => i.bajo).length;
-  const valorTotal = activos.reduce((s, i) => s + (i.moneda_costo === 'COP' ? Number(i.valor) : 0), 0);
+  const actual = porArea.find((a) => a.id === area)!;
 
   const camposInsumo: CampoCrud[] = [
     { nombre: 'nombre', etiqueta: 'Nombre' },
     { nombre: 'codigo', etiqueta: 'Código', placeholder: 'Automático si lo dejas vacío' },
-    { nombre: 'categoria_insumo_id', etiqueta: 'Categoría', tipo: 'select', opciones: (cats.datos ?? []).map((c) => ({ valor: c.id, etiqueta: `${c.icono ?? ''} ${c.nombre}` })) },
+    { nombre: 'area', etiqueta: 'Área del inventario', tipo: 'select', opciones: AREAS.map((a) => ({ valor: a.id, etiqueta: a.nombre })), ayuda: 'Cocina, barra o bodega general: define en qué bolsa entra la plata de este insumo.' },
+    { nombre: 'categoria_insumo_id', etiqueta: 'Categoría', tipo: 'select', opciones: (cats.datos ?? []).map((c) => ({ valor: c.id, etiqueta: `${c.icono ?? ''} ${c.nombre} · ${AREA[c.area]?.nombre ?? c.area}` })) },
     { nombre: 'unidad', etiqueta: 'Unidad base', tipo: 'select', opciones: [{ valor: 'und', etiqueta: 'Unidades (cervezas, panes…)' }, { valor: 'ml', etiqueta: 'Mililitros (licores)' }, { valor: 'g', etiqueta: 'Gramos (cocina)' }], ayuda: 'En esta unidad se descuenta al vender.' },
     { nombre: 'presentacion_compra', etiqueta: 'Cómo se compra', placeholder: 'Caja x24, Botella 750 ml, Kilo…' },
     { nombre: 'factor_compra', etiqueta: 'Unidades base por compra', tipo: 'numero', ayuda: 'Caja x24 → 24 · Botella 750 ml → 750 · Kilo → 1000' },
@@ -104,88 +134,88 @@ export default function InventarioPage() {
   const abrirMov = (insumo: Insumo, tipo: NonNullable<typeof mov>['tipo']) =>
     setMov({ insumo, tipo, cantidad: null, en_presentacion: tipo === 'entrada' && insumo.factor_compra > 1, costo: null, proveedor: '', nota: '' });
 
+  const nuevoInsumo = () =>
+    setEditar({
+      nombre: '', codigo: '', area, categoria_insumo_id: catsArea[0]?.id ?? cats.datos?.[0]?.id ?? null,
+      unidad: area === 'cocina' ? 'g' : 'und', presentacion_compra: '', factor_compra: 1, stock_minimo: 0,
+      costo_unitario: 0, moneda_costo: 'COP', recargo_seleccion: 0, stock_inicial: 0, activo: true,
+    });
+
   return (
     <div>
-      <Encabezado titulo="Inventario" descripcion="Cada venta descuenta sola según la receta del producto. Aquí registras lo que entra, cuentas lo que hay y anotas las mermas.">
-        <Pestanas valor={tab} onCambio={setTab} opciones={[{ valor: 'existencias', etiqueta: 'Existencias' }, { valor: 'kardex', etiqueta: 'Movimientos (kardex)' }]} />
-        {gestion && <Boton variante="oro" onClick={() => setEditar({ nombre: '', codigo: '', categoria_insumo_id: cats.datos?.[0]?.id ?? null, unidad: 'und', presentacion_compra: '', factor_compra: 1, stock_minimo: 0, costo_unitario: 0, moneda_costo: 'COP', recargo_seleccion: 0, stock_inicial: 0, activo: true })}><Plus size={16} /> Nuevo insumo</Boton>}
+      <Encabezado titulo="Inventario" descripcion="El inventario se maneja en tres bolsas separadas: cocina, barra y bodega general. Aquí registras lo que entra, cuentas lo que hay y anotas las mermas.">
+        <Pestanas
+          valor={area}
+          onCambio={(v) => { setArea(v); setCat('todas'); }}
+          opciones={porArea.map((a) => ({ valor: a.id, etiqueta: a.nombre, cuenta: a.insumos }))}
+        />
+        {gestion && <Boton variante="oro" onClick={nuevoInsumo}><Plus size={16} /> Nuevo insumo</Boton>}
       </Encabezado>
 
-      {tab === 'existencias' && (
-        <>
-          <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-            <Dato etiqueta="Insumos activos" valor={activos.length} />
-            <Dato etiqueta="En stock bajo" valor={<span className={bajos ? 'text-red-300' : ''}>{bajos}</span>} sub={bajos ? 'Revisa y haz pedido' : 'Todo en orden'} />
-            <Dato etiqueta="Valor del inventario" valor={dinero(valorTotal, 'COP')} sub="A costo, insumos en COP" acento />
-            <Dato etiqueta="Cervezas disponibles" valor={numero(activos.filter((i) => i.categoria === 'Cervezas').reduce((s, i) => s + Number(i.stock), 0))} sub="Para tobos y venta suelta" />
-          </div>
+      {/* Lo invertido en cada bolsa: lo que el dueño compara antes y después del fin de semana */}
+      <div className="mb-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        {porArea.map((a) => {
+          const Icono = a.icono;
+          const activa = a.id === area;
+          return (
+            <button key={a.id} onClick={() => { setArea(a.id); setCat('todas'); }} className={`rounded-2xl border p-4 text-left transition ${activa ? 'border-gold bg-gold/10' : 'border-gold/15 hover:border-gold/40'}`}>
+              <p className="flex items-center gap-1.5 text-[11px] tracking-wider text-smoke uppercase"><Icono size={13} className={activa ? 'text-gold' : ''} /> {a.nombre}</p>
+              <p className={`mt-1 font-display text-2xl font-light ${activa ? 'text-gold-light' : 'text-ivory'}`}>{dinero(a.valor, 'COP')}</p>
+              <p className="mt-0.5 text-xs text-smoke">{a.insumos} insumos{a.bajos > 0 && <span className="text-red-300"> · {a.bajos} bajo{a.bajos > 1 ? 's' : ''}</span>}</p>
+            </button>
+          );
+        })}
+        <Dato etiqueta="Inversión total" valor={dinero(invertidoTotal, 'COP')} sub="Suma de las tres bolsas, a costo" acento />
+      </div>
 
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <label className="relative">
-              <Search size={15} className="absolute top-1/2 left-3 -translate-y-1/2 text-smoke" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar insumo…" className="w-52 pl-9" />
-            </label>
-            <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
-              {[{ id: 'todas' as const, nombre: 'Todas' }, { id: 'bajo' as const, nombre: `⚠ Stock bajo (${bajos})` }, ...(cats.datos ?? []).map((c) => ({ id: c.id, nombre: `${c.icono ?? ''} ${c.nombre}` }))].map((c) => (
-                <button key={c.id} onClick={() => setCat(c.id)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs whitespace-nowrap ${cat === c.id ? 'bg-gold font-semibold text-void' : 'border border-gold/15 text-smoke hover:text-ivory'}`}>{c.nombre}</button>
-              ))}
-            </div>
-          </div>
+      <p className="mb-3 text-sm text-smoke">{actual.descripcion}</p>
 
-          {insumos.cargando ? <Cargando /> : insumos.error ? <ErrorCaja mensaje={insumos.error} onReintentar={insumos.recargar} /> : (
-            <Tabla<Insumo>
-              filas={lista}
-              clave={(i) => i.id}
-              vacio="No hay insumos con ese filtro"
-              columnas={[
-                { titulo: 'Insumo', celda: (i) => (
-                  <div className={i.activo ? '' : 'opacity-50'}>
-                    <p className="flex items-center gap-2 font-medium">{i.bajo && i.activo && <AlertTriangle size={14} className="shrink-0 text-red-300" />}{i.nombre}</p>
-                    <p className="text-xs text-smoke">{i.codigo} · {i.categoria ?? 'Sin categoría'}{!i.activo && ' · inactivo'}</p>
-                  </div>
-                ) },
-                { titulo: 'Existencia', celda: (i) => (
-                  <div>
-                    <p className={`font-medium ${i.stock <= 0 ? 'text-red-300' : i.bajo ? 'text-gold-light' : 'text-ivory'}`}>{stockLegible(i)}</p>
-                    <p className="text-xs text-smoke">Mínimo {numero(i.stock_minimo)} {i.unidad}</p>
-                  </div>
-                ) },
-                { titulo: 'Costo', celda: (i) => <span className="text-smoke">{dinero(i.costo_unitario * i.factor_compra, i.moneda_costo)}{i.factor_compra > 1 && <span className="block text-[11px]">por {i.presentacion_compra}</span>}</span>, alinear: 'der' },
-                { titulo: 'Valor', celda: (i) => dinero(i.valor, i.moneda_costo), alinear: 'der' },
-                { titulo: '', alinear: 'der', celda: (i) => (
-                  <div className="flex justify-end gap-1">
-                    {gestion && <Boton tam="sm" variante="verde" onClick={() => abrirMov(i, 'entrada')} title="Registrar compra"><PackagePlus size={14} /> Entrada</Boton>}
-                    {gestion && <Boton tam="sm" onClick={() => abrirMov(i, 'ajuste')} title="Conteo físico"><ClipboardCheck size={14} /> Conteo</Boton>}
-                    <Boton tam="sm" variante="peligro" onClick={() => abrirMov(i, 'merma')} title="Botella rota, producto dañado…"><Trash2 size={14} /> Merma</Boton>
-                    {gestion && <Boton tam="sm" variante="sutil" onClick={() => setEditar({ ...i })} aria-label="Editar"><Pencil size={14} /></Boton>}
-                  </div>
-                ) },
-              ]}
-            />
-          )}
-        </>
-      )}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <label className="relative">
+          <Search size={15} className="absolute top-1/2 left-3 -translate-y-1/2 text-smoke" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar insumo…" className="w-52 pl-9" />
+        </label>
+        <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
+          {[{ id: 'todas' as const, nombre: 'Todas' }, { id: 'bajo' as const, nombre: `⚠ Stock bajo (${actual.bajos})` }, ...catsArea.map((c) => ({ id: c.id, nombre: `${c.icono ?? ''} ${c.nombre}` }))].map((c) => (
+            <button key={c.id} onClick={() => setCat(c.id)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs whitespace-nowrap ${cat === c.id ? 'bg-gold font-semibold text-void' : 'border border-gold/15 text-smoke hover:text-ivory'}`}>{c.nombre}</button>
+          ))}
+        </div>
+      </div>
 
-      {tab === 'kardex' && (
-        kardex.cargando ? <Cargando /> : (
-          <Tabla<Mov>
-            filas={kardex.datos ?? []}
-            clave={(m) => m.id}
-            columnas={[
-              { titulo: 'Fecha', celda: (m) => <span className="text-smoke">{fechaHora(m.fecha)}</span> },
-              { titulo: 'Insumo', celda: (m) => m.insumo },
-              { titulo: 'Tipo', celda: (m) => <Insignia color={TIPO_MOV[m.tipo]?.color}>{TIPO_MOV[m.tipo]?.nombre ?? m.tipo}</Insignia> },
-              { titulo: 'Cantidad', celda: (m) => <span className={m.cantidad > 0 ? 'text-venom' : 'text-red-300'}>{m.cantidad > 0 ? '+' : ''}{numero(m.cantidad, 2)} {m.unidad}</span>, alinear: 'der' },
-              { titulo: 'Queda', celda: (m) => `${numero(m.stock_resultante, 1)} ${m.unidad}`, alinear: 'der' },
-              { titulo: 'Detalle', celda: (m) => <span className="text-xs text-smoke">{[m.proveedor, m.nota].filter(Boolean).join(' · ') || '—'}</span> },
-              { titulo: 'Usuario', celda: (m) => <span className="text-smoke">{m.usuario ?? 'Sistema'}</span> },
-            ]}
-          />
-        )
+      {insumos.cargando ? <Cargando /> : insumos.error ? <ErrorCaja mensaje={insumos.error} onReintentar={insumos.recargar} /> : (
+        <Tabla<Insumo>
+          filas={lista}
+          clave={(i) => i.id}
+          vacio={`Todavía no hay insumos cargados en ${actual.nombre.toLowerCase()}`}
+          columnas={[
+            { titulo: 'Insumo', celda: (i) => (
+              <div className={i.activo ? '' : 'opacity-50'}>
+                <p className="flex items-center gap-2 font-medium">{i.bajo && i.activo && <AlertTriangle size={14} className="shrink-0 text-red-300" />}{i.nombre}</p>
+                <p className="text-xs text-smoke">{i.codigo} · {i.categoria ?? 'Sin categoría'}{!i.activo && ' · inactivo'}</p>
+              </div>
+            ) },
+            { titulo: 'Existencia', celda: (i) => (
+              <div>
+                <p className={`font-medium ${i.stock <= 0 ? 'text-red-300' : i.bajo ? 'text-gold-light' : 'text-ivory'}`}>{stockLegible(i)}</p>
+                <p className="text-xs text-smoke">Mínimo {numero(i.stock_minimo)} {i.unidad}</p>
+              </div>
+            ) },
+            { titulo: 'Costo', celda: (i) => <span className="text-smoke">{dinero(i.costo_unitario * i.factor_compra, i.moneda_costo)}{i.factor_compra > 1 && <span className="block text-[11px]">por {i.presentacion_compra}</span>}</span>, alinear: 'der' },
+            { titulo: 'Valor', celda: (i) => dinero(i.valor, i.moneda_costo), alinear: 'der' },
+            { titulo: '', alinear: 'der', celda: (i) => (
+              <div className="flex justify-end gap-1">
+                {gestion && <Boton tam="sm" variante="verde" onClick={() => abrirMov(i, 'entrada')} title="Registrar compra"><PackagePlus size={14} /> Entrada</Boton>}
+                {gestion && <Boton tam="sm" onClick={() => abrirMov(i, 'ajuste')} title="Conteo físico"><ClipboardCheck size={14} /> Conteo</Boton>}
+                <Boton tam="sm" variante="peligro" onClick={() => abrirMov(i, 'merma')} title="Botella rota, producto dañado…"><Trash2 size={14} /> Merma</Boton>
+                {gestion && <Boton tam="sm" variante="sutil" onClick={() => setEditar({ ...i })} aria-label="Editar"><Pencil size={14} /></Boton>}
+              </div>
+            ) },
+          ]}
+        />
       )}
 
       {editar && (
-        <Modal titulo={editar.id ? 'Editar insumo' : 'Nuevo insumo'} onCerrar={() => setEditar(null)} ancho="max-w-2xl"
+        <Modal titulo={editar.id ? 'Editar insumo' : `Nuevo insumo en ${AREA[editar.area as AreaInv]?.nombre ?? 'inventario'}`} onCerrar={() => setEditar(null)} ancho="max-w-2xl"
           pie={<><Boton variante="sutil" onClick={() => setEditar(null)}>Cancelar</Boton><Boton variante="oro" cargando={ocupado} onClick={guardarInsumo}>Guardar</Boton></>}>
           <div className="grid gap-4 sm:grid-cols-2">
             {camposInsumo.filter((c) => !c.si || c.si(editar)).map((c) => <CampoForm key={c.nombre} campo={c} valor={editar[c.nombre]} onCambio={(v) => setEditar({ ...editar, [c.nombre]: v })} />)}
@@ -196,7 +226,7 @@ export default function InventarioPage() {
       {mov && (
         <Modal
           titulo={{ entrada: 'Registrar entrada', ajuste: 'Conteo físico', merma: 'Registrar merma', consumo_interno: 'Consumo interno' }[mov.tipo]}
-          subtitulo={`${mov.insumo.nombre} · en sistema: ${stockLegible(mov.insumo)}`}
+          subtitulo={`${mov.insumo.nombre} · ${AREA[mov.insumo.area]?.nombre} · en sistema: ${stockLegible(mov.insumo)}`}
           onCerrar={() => setMov(null)}
           ancho="max-w-md"
           pie={<><Boton variante="sutil" onClick={() => setMov(null)}>Cancelar</Boton><Boton variante="oro" cargando={ocupado} onClick={guardarMov}>Guardar</Boton></>}
