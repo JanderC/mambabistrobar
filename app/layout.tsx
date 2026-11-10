@@ -21,6 +21,8 @@ export async function generateMetadata(): Promise<Metadata> {
     openGraph: { type: 'website', locale: 'es_CO', siteName: local.nombre, title, description },
     twitter: { card: 'summary_large_image', title, description },
     robots: { index: true, follow: true },
+    // iPad/iPhone: abrir a pantalla completa al instalarla desde Safari
+    appleWebApp: { capable: true, title: 'Mamba', statusBarStyle: 'black-translucent' },
   };
 }
 

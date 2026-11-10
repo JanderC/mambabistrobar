@@ -4,7 +4,7 @@ import { AlertTriangle, Beer, ChefHat, ClipboardCheck, PackagePlus, Pencil, Plus
 import { useMemo, useState } from 'react';
 import { CampoForm, type CampoCrud } from '@/components/admin/Crud';
 import { useSesion } from '@/components/admin/Sesion';
-import { Area, Boton, Campo, Cargando, Dato, Encabezado, ErrorCaja, Input, InputNum, Interruptor, Modal, Pestanas, Select, Tabla, useAvisos, useDatos } from '@/components/admin/ui';
+import { Area, Boton, Campo, Cargando, Dato, Encabezado, ErrorCaja, Input, InputNum, Interruptor, Modal, Pestanas, Select, Tabla, Vacio, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
 import { type Moneda, dinero, numero } from '@/lib/admin/moneda';
 
@@ -170,19 +170,64 @@ export default function InventarioPage() {
 
       <p className="mb-3 text-sm text-smoke">{actual.descripcion}</p>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <label className="relative">
+      <div className="mb-3 flex flex-col gap-2 xl:flex-row xl:items-center">
+        <label className="relative w-full xl:w-52 xl:shrink-0">
           <Search size={15} className="absolute top-1/2 left-3 -translate-y-1/2 text-smoke" />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar insumo…" className="w-52 pl-9" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar insumo…" className="w-full pl-9" />
         </label>
-        <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
+        <div className="no-scrollbar -mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:px-0">
           {[{ id: 'todas' as const, nombre: 'Todas' }, { id: 'bajo' as const, nombre: `⚠ Stock bajo (${actual.bajos})` }, ...catsArea.map((c) => ({ id: c.id, nombre: `${c.icono ?? ''} ${c.nombre}` }))].map((c) => (
-            <button key={c.id} onClick={() => setCat(c.id)} className={`shrink-0 rounded-full px-3 py-1.5 text-xs whitespace-nowrap ${cat === c.id ? 'bg-gold font-semibold text-void' : 'border border-gold/15 text-smoke hover:text-ivory'}`}>{c.nombre}</button>
+            <button key={c.id} onClick={() => setCat(c.id)} className={`shrink-0 rounded-full px-4 py-2.5 text-sm whitespace-nowrap xl:px-3 xl:py-1.5 xl:text-xs ${cat === c.id ? 'bg-gold font-semibold text-void' : 'border border-gold/15 text-smoke hover:text-ivory'}`}>{c.nombre}</button>
           ))}
         </div>
       </div>
 
       {insumos.cargando ? <Cargando /> : insumos.error ? <ErrorCaja mensaje={insumos.error} onReintentar={insumos.recargar} /> : (
+        <>
+        {/* Tablet y celular: tarjetas táctiles con botones grandes */}
+        <div className="xl:hidden">
+          {!lista.length ? <Vacio titulo={`Todavía no hay insumos cargados en ${actual.nombre.toLowerCase()}`} /> : (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {lista.map((i) => {
+                const estado = !i.activo ? null : i.stock <= 0 ? { t: 'Agotado', c: 'bg-red-500/15 text-red-300' } : i.bajo ? { t: 'Stock bajo', c: 'bg-gold/15 text-gold-light' } : null;
+                return (
+                  <div key={i.id} className={`flex flex-col rounded-2xl border bg-[#06140f]/90 p-4 ${i.stock <= 0 && i.activo ? 'border-red-400/30' : i.bajo && i.activo ? 'border-gold/30' : 'border-gold/10'} ${i.activo ? '' : 'opacity-60'}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-ivory">{i.nombre}</p>
+                        <p className="text-xs text-smoke">{i.codigo} · {i.categoria ?? 'Sin categoría'}{!i.activo && ' · inactivo'}</p>
+                      </div>
+                      {estado && <span className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${estado.c}`}><AlertTriangle size={12} /> {estado.t}</span>}
+                      {gestion && <button onClick={() => setEditar({ ...i })} aria-label="Editar" className="-mt-1 -mr-1 grid h-10 w-10 shrink-0 place-items-center rounded-xl text-smoke hover:bg-white/10 hover:text-ivory"><Pencil size={17} /></button>}
+                    </div>
+
+                    <p className={`mt-3 font-display text-2xl font-light ${i.stock <= 0 ? 'text-red-300' : i.bajo ? 'text-gold-light' : 'text-ivory'}`}>
+                      {numero(i.stock, 0)} <span className="text-base text-smoke">{i.unidad}</span>
+                    </p>
+                    <p className="text-xs text-smoke">
+                      {i.presentacion_compra && i.factor_compra > 1 && <>{numero(i.stock / i.factor_compra, 1)} × {i.presentacion_compra} · </>}
+                      Mínimo {numero(i.stock_minimo)} {i.unidad}
+                    </p>
+
+                    <div className="mt-3 flex justify-between gap-2 border-t border-white/5 pt-3 text-xs text-smoke">
+                      <span>Costo {dinero(i.costo_unitario * i.factor_compra, i.moneda_costo)}{i.factor_compra > 1 && ` / ${i.presentacion_compra}`}</span>
+                      <span className="tabular-nums text-ivory">{dinero(i.valor, i.moneda_costo)}</span>
+                    </div>
+
+                    <div className="mt-3 grid auto-cols-fr grid-flow-col gap-2">
+                      {gestion && <Boton variante="verde" className="h-12" onClick={() => abrirMov(i, 'entrada')}><PackagePlus size={17} /> Entrada</Boton>}
+                      {gestion && <Boton className="h-12" onClick={() => abrirMov(i, 'ajuste')}><ClipboardCheck size={17} /> Conteo</Boton>}
+                      <Boton variante="peligro" className="h-12" onClick={() => abrirMov(i, 'merma')}><Trash2 size={17} /> Merma</Boton>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Escritorio: tabla completa */}
+        <div className="hidden xl:block">
         <Tabla<Insumo>
           filas={lista}
           clave={(i) => i.id}
@@ -212,6 +257,8 @@ export default function InventarioPage() {
             ) },
           ]}
         />
+        </div>
+        </>
       )}
 
       {editar && (
