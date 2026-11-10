@@ -82,18 +82,15 @@ export default function InventarioPage() {
 
   const actual = porArea.find((a) => a.id === area)!;
 
+  // Formulario corto para agregar rápido: el código lo genera el sistema; compra por caja y recargo en surtidos quedan con su valor por defecto
   const camposInsumo: CampoCrud[] = [
     { nombre: 'nombre', etiqueta: 'Nombre' },
-    { nombre: 'codigo', etiqueta: 'Código', placeholder: 'Automático si lo dejas vacío' },
     { nombre: 'area', etiqueta: 'Área del inventario', tipo: 'select', opciones: AREAS.map((a) => ({ valor: a.id, etiqueta: a.nombre })), ayuda: 'Cocina, barra o bodega general: define en qué bolsa entra la plata de este insumo.' },
     { nombre: 'categoria_insumo_id', etiqueta: 'Categoría', tipo: 'select', opciones: (cats.datos ?? []).map((c) => ({ valor: c.id, etiqueta: `${c.icono ?? ''} ${c.nombre} · ${AREA[c.area]?.nombre ?? c.area}` })) },
     { nombre: 'unidad', etiqueta: 'Unidad base', tipo: 'select', opciones: [{ valor: 'und', etiqueta: 'Unidades (cervezas, panes…)' }, { valor: 'ml', etiqueta: 'Mililitros (licores)' }, { valor: 'g', etiqueta: 'Gramos (cocina)' }], ayuda: 'En esta unidad se descuenta al vender.' },
-    { nombre: 'presentacion_compra', etiqueta: 'Cómo se compra', placeholder: 'Caja x24, Botella 750 ml, Kilo…' },
-    { nombre: 'factor_compra', etiqueta: 'Unidades base por compra', tipo: 'numero', ayuda: 'Caja x24 → 24 · Botella 750 ml → 750 · Kilo → 1000' },
     { nombre: 'stock_minimo', etiqueta: 'Stock mínimo (alerta)', tipo: 'numero' },
     { nombre: 'costo_unitario', etiqueta: 'Costo por unidad base', tipo: 'numero' },
     { nombre: 'moneda_costo', etiqueta: 'Moneda del costo', tipo: 'select', opciones: ['COP', 'USD', 'VES'].map((m) => ({ valor: m, etiqueta: m })) },
-    { nombre: 'recargo_seleccion', etiqueta: 'Recargo en surtidos', tipo: 'numero', ayuda: 'Se suma al tobo cuando eligen esta opción (ej. importadas). En la moneda del producto.' },
     { nombre: 'stock_inicial', etiqueta: 'Stock inicial', tipo: 'numero', si: (f) => !f.id },
     { nombre: 'activo', etiqueta: 'Activo', tipo: 'si_no' },
   ];
@@ -136,7 +133,7 @@ export default function InventarioPage() {
 
   const nuevoInsumo = () =>
     setEditar({
-      nombre: '', codigo: '', area, categoria_insumo_id: catsArea[0]?.id ?? cats.datos?.[0]?.id ?? null,
+      nombre: '', area, categoria_insumo_id: catsArea[0]?.id ?? cats.datos?.[0]?.id ?? null,
       unidad: area === 'cocina' ? 'g' : 'und', presentacion_compra: '', factor_compra: 1, stock_minimo: 0,
       costo_unitario: 0, moneda_costo: 'COP', recargo_seleccion: 0, stock_inicial: 0, activo: true,
     });
