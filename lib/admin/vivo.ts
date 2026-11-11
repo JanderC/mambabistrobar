@@ -38,17 +38,20 @@ const setConectado = (c: boolean) => {
 
 async function conectar() {
   if (control || !sesion.token()) return;
-  control = new AbortController();
+  // Cada conexión guarda su propio control: si se detiene y arranca otra mientras esta termina,
+  // esta no debe pisar a la nueva (antes quedaban dos conexiones y cada aviso llegaba doble)
+  const mio = new AbortController();
+  control = mio;
   let latido: ReturnType<typeof setTimeout> | undefined;
   // Si pasan 45 s sin latido del servidor (llega cada 20 s), la conexión está muerta aunque el navegador no lo sepa
   const vigilar = () => {
     clearTimeout(latido);
-    latido = setTimeout(() => control?.abort(), 45_000);
+    latido = setTimeout(() => mio.abort(), 45_000);
   };
   try {
     const res = await fetch(`${API_URL}/admin/vivo`, {
       headers: { Authorization: `Bearer ${sesion.token()}`, Accept: 'text/event-stream' },
-      signal: control.signal,
+      signal: mio.signal,
       cache: 'no-store',
     });
     if (res.status === 401) return detener(); // sesión vencida: no insistir
@@ -82,6 +85,8 @@ async function conectar() {
     }
   } catch { /* corte de red o abort: se reintenta abajo */ }
   clearTimeout(latido);
+  // Se detuvo a propósito o ya hay otra conexión al mando: no tocar nada
+  if (control !== mio) return;
   control = null;
   setConectado(false);
   if (oyentes.size || oyentesEstado.size) {
