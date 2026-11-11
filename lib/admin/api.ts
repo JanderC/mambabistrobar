@@ -19,14 +19,15 @@ type Opciones = { method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'; body?: u
 /** Llama a /api/admin/* con el token de la sesión. Lanza ApiError con el mensaje del servidor. */
 export async function adm<T = any>(ruta: string, { method = 'GET', body }: Opciones = {}): Promise<T> {
   let res: Response;
+  const binario = typeof Blob !== 'undefined' && body instanceof Blob; // fotos: se mandan tal cual
   try {
     res = await fetch(`${API_URL}/admin${ruta}`, {
       method,
       headers: {
-        ...(body !== undefined && { 'Content-Type': 'application/json' }),
+        ...(body !== undefined && { 'Content-Type': binario ? (body as Blob).type : 'application/json' }),
         ...(sesion.token() && { Authorization: `Bearer ${sesion.token()}` }),
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: binario ? (body as Blob) : body !== undefined ? JSON.stringify(body) : undefined,
       cache: 'no-store',
     });
   } catch {

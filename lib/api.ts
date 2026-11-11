@@ -47,5 +47,5 @@ export const api = {
   evento: (slug: string) => get<Evento | null>(`/eventos/${encodeURIComponent(slug)}`, null),
   opcionesReserva: () =>
     get<OpcionesReserva>('/reservas/opciones', { zonas: [], politicas: [], eventos: [], horarios: [] }),
-  galeria: () => get<Media[]>('/galeria', [], 300),
+  galeria: () => get<Media[]>('/galeria', [], 60),
 };

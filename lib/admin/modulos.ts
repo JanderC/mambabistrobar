@@ -1,5 +1,5 @@
 import {
-  type LucideIcon, Armchair, BarChart3, Bell, Beer, Boxes, CalendarCheck, ChefHat, CreditCard, HandCoins, Home, LayoutGrid, Megaphone,
+  type LucideIcon, Armchair, BarChart3, Bell, Beer, Boxes, CalendarCheck, ChefHat, CreditCard, HandCoins, Home, Images, LayoutGrid, Megaphone,
   MessageCircle, PartyPopper, QrCode, Receipt, Settings, ShieldCheck, Sparkles, TabletSmartphone, TrendingUp, UserCog, Users, UtensilsCrossed, Wallet,
 } from 'lucide-react';
 
@@ -64,6 +64,7 @@ export const AREAS: Area[] = [
       { href: '/admin/reservas', nombre: 'Reservas', descripcion: 'Confirma, asigna mesa y sienta a los clientes', icono: CalendarCheck, roles: [...COMERCIAL, 'mesonero'], claves: 'rrpp vip confirmar' },
       { href: '/admin/eventos', nombre: 'Eventos', descripcion: 'Cartelera, DJs, cover y flyers', icono: PartyPopper, roles: COMERCIAL, claves: 'fiestas cartelera dj flyer' },
       { href: '/admin/recordatorios', nombre: 'Recordatorios', descripcion: 'Tareas del equipo y avisos de eventos a clientes', icono: Bell, roles: ['gerente', 'rrpp', 'cajero', 'barra', 'cocina', 'mesonero'], claves: 'tareas avisos whatsapp pendientes' },
+      { href: '/admin/galeria', nombre: 'Galería', descripcion: 'Sube las fotos del ambiente que salen en la web', icono: Images, roles: ['gerente', 'rrpp'], claves: 'fotos ambiente imagenes subir web instagram' },
       { href: '/admin/whatsapp', nombre: 'WhatsApp', descripcion: 'Vincula el WhatsApp del local y responde los chats desde el sistema', icono: MessageCircle, roles: COMERCIAL, claves: 'whatsapp chats mensajes vincular qr responder' },
       { href: '/admin/clientes', nombre: 'Clientes', descripcion: 'Base de clientes, VIP y cumpleaños', icono: Users, roles: [...COMERCIAL, 'mesonero', 'barra'], claves: 'vip cumpleaños contactos' },
     ],

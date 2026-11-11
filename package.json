@@ -2,9 +2,7 @@
   "name": "mamba-frontend",
   "version": "1.0.0",
   "scripts": {
-    "predev": "node scripts/galeria.mjs",
     "dev": "next dev",
-    "prebuild": "node scripts/galeria.mjs",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit"

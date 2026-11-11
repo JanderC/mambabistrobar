@@ -1,10 +1,11 @@
 'use client';
 
-import { ChevronDown, Plus, Search, Star, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { ChevronDown, ImagePlus, Plus, Search, Star, Trash2 } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 import { CampoForm, Crud } from '@/components/admin/Crud';
 import { Boton, Campo, Cargando, Encabezado, ErrorCaja, Input, InputNum, Insignia, Interruptor, Modal, Pestanas, Select, Tarjeta, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
+import { subirFoto } from '@/lib/admin/imagen';
 import { agrupar, dinero } from '@/lib/admin/moneda';
 
 type RecetaItem = { insumo_id: number | null; cantidad: number | null; removible: boolean; etiqueta: string | null; insumo?: string; unidad?: string };
@@ -288,26 +289,35 @@ function ListaProductos({ categorias, insumos, catsInsumo }: { categorias: Categ
   );
 }
 
-/**
- * Las fotos viven en frontend/public/uploads (se suben con el código y Vercel las sirve en /uploads/…).
- * Aquí basta escribir el nombre del archivo; también acepta una URL completa.
- */
+/** Foto del producto: se sube desde aquí (se achica sola) y sale en el menú de la web */
 function CampoImagen({ valor, onCambio }: { valor: string | null; onCambio: (v: string | null) => void }) {
-  const nombre = valor?.startsWith('/uploads/') ? valor.slice('/uploads/'.length) : (valor ?? '');
-  const [falla, setFalla] = useState(false);
-  const cambiar = (t: string) => {
-    setFalla(false);
-    const v = t.trim();
-    onCambio(!v ? null : /^(https?:)?\/\//.test(v) || v.startsWith('/') ? v : `/uploads/${v}`);
+  const avisos = useAvisos();
+  const entrada = useRef<HTMLInputElement>(null);
+  const [subiendo, setSubiendo] = useState(false);
+  const subir = async (a: File | undefined) => {
+    if (!a) return;
+    setSubiendo(true);
+    try {
+      onCambio((await subirFoto(a, 900)).url);
+    } catch (e) {
+      avisos.error(e);
+    } finally {
+      setSubiendo(false);
+      if (entrada.current) entrada.current.value = '';
+    }
   };
   return (
-    <Campo etiqueta="Foto" className="sm:col-span-2" ayuda={falla ? 'No se encontró la foto: revisa el nombre (con .jpg, .png o .webp) y que ya esté subida a la carpeta uploads.' : 'Nombre del archivo en la carpeta uploads, por ejemplo mamba-deluxe.jpg. Déjalo vacío si no tiene foto.'}>
+    <Campo etiqueta="Foto" className="sm:col-span-2" ayuda="Opcional. Sale en el menú de la web; mejor cuadrada y con buena luz.">
       <div className="flex items-center gap-3">
-        {valor && !falla && (
+        {valor ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={valor} alt="" onError={() => setFalla(true)} className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+          <img src={valor} alt="" className="h-16 w-16 shrink-0 rounded-lg object-cover ring-1 ring-gold/20" />
+        ) : (
+          <span className="grid h-16 w-16 shrink-0 place-items-center rounded-lg bg-void/60 text-smoke ring-1 ring-gold/10"><ImagePlus size={20} /></span>
         )}
-        <Input value={nombre} onChange={(e) => cambiar(e.target.value)} placeholder="mamba-deluxe.jpg" />
+        <input ref={entrada} type="file" accept="image/*" hidden onChange={(e) => subir(e.target.files?.[0])} />
+        <Boton type="button" variante="borde" cargando={subiendo} onClick={() => entrada.current?.click()}>{valor ? 'Cambiar foto' : 'Subir foto'}</Boton>
+        {valor && <Boton type="button" variante="sutil" onClick={() => onCambio(null)}>Quitar</Boton>}
       </div>
     </Campo>
   );

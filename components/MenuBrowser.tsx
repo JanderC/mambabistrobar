@@ -121,7 +121,7 @@ function ProductoCard({ p }: { p: Producto }) {
       <div className="flex gap-4">
         {p.imagen_url && (
           <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl">
-            <Image src={p.imagen_url} alt={p.nombre} fill sizes="80px" className="object-cover" />
+            <Image src={p.imagen_url} alt={p.nombre} fill sizes="80px" className="object-cover" unoptimized={p.imagen_url.includes('/api/imagenes/')} />
           </div>
         )}
         <div className="min-w-0 flex-1">

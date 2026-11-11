@@ -3,10 +3,8 @@ import { IconInstagram, IconTikTok } from '@/components/icons';
 import { SerpentMark } from '@/components/SerpentMark';
 import { PageHero } from '@/components/ui';
 import { api } from '@/lib/api';
-import listaLocal from '@/lib/galeria-local.json';
-import type { Media } from '@/lib/types';
 
-export const revalidate = 300;
+export const revalidate = 60;
 
 export const metadata: Metadata = {
   title: 'Galería — Fotos y Reels',
@@ -15,12 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default async function GaleriaPage() {
-  const [remotas, local] = await Promise.all([api.galeria(), api.local()]);
-  // Primero las fotos subidas a public/uploads/galeria, después Instagram o las de la base
-  const subidas: Media[] = (listaLocal as { archivo: string; url: string }[]).map((f) => ({
-    id: `local-${f.archivo}`, tipo: 'foto', fuente: 'local', url: f.url, miniatura_url: null, descripcion: null, enlace: null,
-  }));
-  const media = [...subidas, ...remotas];
+  const [media, local] = await Promise.all([api.galeria(), api.local()]);
 
   return (
     <>
