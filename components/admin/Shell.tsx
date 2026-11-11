@@ -10,6 +10,7 @@ import { type Area, INICIO, ROLES, areasPara, ubicar } from '@/lib/admin/modulos
 import { type Tasa, fechaCorta, fechaHora, numero } from '@/lib/admin/moneda';
 import { sonar, useVivo, useVivoConectado } from '@/lib/admin/vivo';
 import { useSesion } from './Sesion';
+import { ImpresionAutomatica } from './ImpresoraComandas';
 import { Boton, Campo, Input, Modal, useAvisos, useDatos } from './ui';
 
 type Alertas = {
@@ -232,6 +233,7 @@ function Estado() {
   return (
     <div ref={ref} className="relative flex items-center gap-2">
       <EnVivo />
+      <ImpresionAutomatica />
       {tasa.datos && (
         <Link href="/admin/tasas" className="hidden h-9 items-center gap-2 rounded-xl border border-gold/15 px-3 text-xs text-smoke hover:border-gold/40 xl:flex" title="Tasa vigente">
           <TrendingUp size={14} className="text-gold" />

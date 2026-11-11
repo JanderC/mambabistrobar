@@ -4,6 +4,7 @@ import { Armchair, ChevronRight, Clock, Plus, ShoppingBag, UserRound, Zap } from
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import { BotonImpresora } from '@/components/admin/ImpresoraComandas';
 import { BandejaQR } from '@/components/admin/pos/BandejaQR';
 import { NombreCliente } from '@/components/admin/pos/NombreCliente';
 import { Boton, Cargando, Encabezado, ErrorCaja, Insignia, Pestanas, useAvisos, useDatos } from '@/components/admin/ui';
@@ -70,6 +71,7 @@ export default function BarraPage() {
     <div className="mx-auto max-w-6xl">
       <Encabezado titulo="Barra" descripcion="Escribe el nombre o una seña del cliente: si ya tiene cuenta aparece al instante; si no, Enter le abre una a su nombre.">
         <Pestanas valor={ver} onCambio={setVer} opciones={[{ valor: 'barra', etiqueta: 'Cuentas de barra' }, { valor: 'todas', etiqueta: 'Todo el local' }]} />
+        <BotonImpresora />
         <Link href="/admin/salon" className="inline-flex h-10 items-center gap-2 rounded-xl border border-gold/30 px-4 text-sm text-gold-light hover:bg-gold/10"><Armchair size={15} /> Taburetes</Link>
       </Encabezado>
 

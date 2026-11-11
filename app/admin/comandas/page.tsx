@@ -1,7 +1,8 @@
 'use client';
 
-import { Check, ChefHat, Clock, Flame, Martini, Maximize2, User, Volume2, VolumeX } from 'lucide-react';
+import { Check, ChefHat, Clock, Flame, Martini, Maximize2, Printer, User, Volume2, VolumeX } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { BotonImpresora, reimprimirComanda } from '@/components/admin/ImpresoraComandas';
 import { useSesion } from '@/components/admin/Sesion';
 import { Boton, Cargando, Encabezado, ErrorCaja, Pestanas, Vacio, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
@@ -64,6 +65,7 @@ export default function ComandasPage() {
   return (
     <div>
       <Encabezado titulo="Comandas" descripcion="Cada pedido entra al instante con su mesa, el cliente y quién lo tomó. Al marcarlo listo, el mesonero recibe el aviso en su tablet.">
+        <BotonImpresora />
         <Boton onClick={alternarSonido} title={sonido ? 'Silenciar avisos' : 'Activar avisos sonoros'} aria-label="Sonido">{sonido ? <Volume2 size={16} /> : <VolumeX size={16} className="text-red-300" />}</Boton>
         <Boton onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})} title="Pantalla completa" aria-label="Pantalla completa"><Maximize2 size={16} /></Boton>
         <Pestanas valor={estacion} onCambio={setEstacion} opciones={[
@@ -125,6 +127,8 @@ export default function ComandasPage() {
                 </ul>
 
                 <footer className="flex gap-2 p-3">
+                  <Boton tam="lg" title="Reimprimir comanda" aria-label="Reimprimir comanda"
+                    onClick={() => reimprimirComanda(items).then(avisos.ok, avisos.error)}><Printer size={18} /></Boton>
                   {todosListos ? (
                     <Boton variante="verde" tam="lg" className="flex-1" onClick={() => cambiar(items.map((i) => i.id), 'entregado')}>Entregado al mesonero</Boton>
                   ) : (
