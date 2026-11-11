@@ -195,6 +195,7 @@ function ListaProductos({ categorias, insumos, catsInsumo }: { categorias: Categ
             <CampoForm campo={{ nombre: 'moneda_base', etiqueta: 'Moneda de los precios', tipo: 'select', opciones: MONEDAS, ayuda: 'Las otras monedas se calculan con la tasa, salvo que fijes un precio.' }} valor={form.moneda_base} onCambio={(v) => setForm({ ...form, moneda_base: v })} />
             <CampoForm campo={{ nombre: 'orden', etiqueta: 'Orden en la categoría', tipo: 'numero' }} valor={form.orden} onCambio={(v) => setForm({ ...form, orden: v ?? 0 })} />
             <CampoForm campo={{ nombre: 'etiquetas', etiqueta: 'Etiquetas', tipo: 'lista', placeholder: 'premium, nuevo, picante, para compartir…' }} valor={form.etiquetas} onCambio={(v) => setForm({ ...form, etiquetas: v })} />
+            <CampoImagen valor={form.imagen_url} onCambio={(v) => setForm({ ...form, imagen_url: v })} />
             <div className="flex flex-wrap gap-x-6 gap-y-2 sm:col-span-2">
               <Interruptor activo={form.disponible} onCambio={(v) => setForm({ ...form, disponible: v })} etiqueta="Disponible" />
               <Interruptor activo={form.visible_pos} onCambio={(v) => setForm({ ...form, visible_pos: v })} etiqueta="Se vende en el POS" />
@@ -284,5 +285,30 @@ function ListaProductos({ categorias, insumos, catsInsumo }: { categorias: Categ
         </Modal>
       )}
     </>
+  );
+}
+
+/**
+ * Las fotos viven en frontend/public/uploads (se suben con el código y Vercel las sirve en /uploads/…).
+ * Aquí basta escribir el nombre del archivo; también acepta una URL completa.
+ */
+function CampoImagen({ valor, onCambio }: { valor: string | null; onCambio: (v: string | null) => void }) {
+  const nombre = valor?.startsWith('/uploads/') ? valor.slice('/uploads/'.length) : (valor ?? '');
+  const [falla, setFalla] = useState(false);
+  const cambiar = (t: string) => {
+    setFalla(false);
+    const v = t.trim();
+    onCambio(!v ? null : /^(https?:)?\/\//.test(v) || v.startsWith('/') ? v : `/uploads/${v}`);
+  };
+  return (
+    <Campo etiqueta="Foto" className="sm:col-span-2" ayuda={falla ? 'No se encontró la foto: revisa el nombre (con .jpg, .png o .webp) y que ya esté subida a la carpeta uploads.' : 'Nombre del archivo en la carpeta uploads, por ejemplo mamba-deluxe.jpg. Déjalo vacío si no tiene foto.'}>
+      <div className="flex items-center gap-3">
+        {valor && !falla && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={valor} alt="" onError={() => setFalla(true)} className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+        )}
+        <Input value={nombre} onChange={(e) => cambiar(e.target.value)} placeholder="mamba-deluxe.jpg" />
+      </div>
+    </Campo>
   );
 }
