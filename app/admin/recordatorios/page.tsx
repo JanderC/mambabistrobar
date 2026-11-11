@@ -70,7 +70,7 @@ export default function RecordatoriosPage() {
     setOcupado(true);
     try {
       const r = await adm<{ automatico: boolean; pendientes: number; enviados: number; fallidos: number }>('/recordatorios/suscripciones/enviar', { method: 'POST' });
-      if (!r.automatico) avisos.info('El envío automático necesita WhatsApp Cloud API configurado. Por ahora envíalos con el botón de cada cliente.');
+      if (!r.automatico) avisos.info('Para enviarlos solos, vincula el WhatsApp del local en el módulo WhatsApp. Por ahora envíalos con el botón de cada cliente.');
       else avisos.ok(`${r.enviados} enviados, ${r.fallidos} fallidos`);
       subs.recargar();
     } catch (e) {

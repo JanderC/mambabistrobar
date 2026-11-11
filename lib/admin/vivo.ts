@@ -14,6 +14,9 @@ export type EventoVivo =
   | { tipo: 'comanda'; estado: string; items: { id: number; nombre: string; cantidad: number; cuenta_id: number; lugar: string; cliente: string | null; mesonero_id: number | null; estacion: string }[] }
   | { tipo: 'cobro'; accion: 'solicitado' | 'cancelado' | 'cobrado'; cuenta_id: number; numero: string; lugar: string; cliente: string | null; mesonero: string | null; mesonero_id: number | null }
   | { tipo: 'cuenta'; accion: string; cuenta_id: number; mesonero_id?: number | null }
+  | { tipo: 'whatsapp'; accion: 'conexion'; estado: string }
+  | { tipo: 'whatsapp'; accion: 'mensaje'; jid: string; de_mi: boolean; texto: string; nuevo: boolean }
+  | { tipo: 'whatsapp'; accion: 'estado'; jid: string; wa_id: string; estado: string }
   /** Sintético: la conexión volvió después de un corte → conviene recargar */
   | { tipo: 'reconectado' };
 

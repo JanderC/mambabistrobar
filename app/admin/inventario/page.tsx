@@ -40,6 +40,7 @@ export default function InventarioPage() {
   const cats = useDatos<CatInsumo[]>('/inventario/categorias');
   const [cat, setCat] = useState<number | 'todas' | 'bajo'>('todas');
   const [q, setQ] = useState('');
+  const [orden, setOrden] = useState<'az' | 'za' | 'categoria' | 'stock'>('az');
   const [editar, setEditar] = useState<Record<string, any> | null>(null);
   const [mov, setMov] = useState<{ insumo: Insumo; tipo: 'entrada' | 'ajuste' | 'merma' | 'consumo_interno'; cantidad: number | null; en_presentacion: boolean; costo: number | null; proveedor: string; nota: string } | null>(null);
   const [ocupado, setOcupado] = useState(false);
@@ -67,18 +68,30 @@ export default function InventarioPage() {
   // Solo las categorías que tienen insumos en el área activa (más las declaradas de esa área)
   const catsArea = useMemo(() => {
     const conInsumos = new Set(todos.filter((i) => i.area === area).map((i) => i.categoria_insumo_id));
-    return (cats.datos ?? []).filter((c) => c.area === area || conInsumos.has(c.id));
+    return (cats.datos ?? []).filter((c) => c.area === area || conInsumos.has(c.id)).sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   }, [cats.datos, todos, area]);
 
   const lista = useMemo(() => {
     const n = q.trim().toLowerCase();
-    return todos.filter(
+    const porNombre = (a: Insumo, b: Insumo) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base', numeric: true });
+    const filtrados = todos.filter(
       (i) =>
         i.area === area &&
         (cat === 'todas' || (cat === 'bajo' ? i.bajo && i.activo : i.categoria_insumo_id === cat)) &&
         (!n || `${i.nombre} ${i.codigo}`.toLowerCase().includes(n)),
     );
-  }, [todos, area, cat, q]);
+    // los inactivos siempre al final; dentro de cada grupo, el orden elegido
+    return filtrados.sort((a, b) => {
+      if (a.activo !== b.activo) return a.activo ? -1 : 1;
+      if (orden === 'za') return porNombre(b, a);
+      if (orden === 'categoria') return (a.categoria ?? '').localeCompare(b.categoria ?? '', 'es') || porNombre(a, b);
+      if (orden === 'stock') {
+        const r = (i: Insumo) => (i.stock_minimo > 0 ? i.stock / i.stock_minimo : Number.MAX_VALUE);
+        return r(a) - r(b) || porNombre(a, b);
+      }
+      return porNombre(a, b);
+    });
+  }, [todos, area, cat, q, orden]);
 
   const actual = porArea.find((a) => a.id === area)!;
 
@@ -172,6 +185,12 @@ export default function InventarioPage() {
           <Search size={15} className="absolute top-1/2 left-3 -translate-y-1/2 text-smoke" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar insumo…" className="w-full pl-9" />
         </label>
+        <Select value={orden} onChange={(e) => setOrden(e.target.value as typeof orden)} aria-label="Ordenar" className="w-full xl:w-48 xl:shrink-0">
+          <option value="az">Orden: A → Z</option>
+          <option value="za">Orden: Z → A</option>
+          <option value="categoria">Por categoría</option>
+          <option value="stock">Lo que se acaba primero</option>
+        </Select>
         <div className="no-scrollbar -mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:px-0">
           {[{ id: 'todas' as const, nombre: 'Todas' }, { id: 'bajo' as const, nombre: `⚠ Stock bajo (${actual.bajos})` }, ...catsArea.map((c) => ({ id: c.id, nombre: `${c.icono ?? ''} ${c.nombre}` }))].map((c) => (
             <button key={c.id} onClick={() => setCat(c.id)} className={`shrink-0 rounded-full px-4 py-2.5 text-sm whitespace-nowrap xl:px-3 xl:py-1.5 xl:text-xs ${cat === c.id ? 'bg-gold font-semibold text-void' : 'border border-gold/15 text-smoke hover:text-ivory'}`}>{c.nombre}</button>
