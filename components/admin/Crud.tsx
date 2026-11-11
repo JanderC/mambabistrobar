@@ -1,6 +1,6 @@
 'use client';
 
-import { Plus, Search, X } from 'lucide-react';
+import { Plus, Search, Trash2, X } from 'lucide-react';
 import { type ReactNode, useMemo, useState } from 'react';
 import { adm } from '@/lib/admin/api';
 import { Area, Boton, Campo, Cargando, type Columna, Encabezado, ErrorCaja, Input, InputNum, Interruptor, Modal, Select, Tabla, useAvisos, useDatos } from './ui';
@@ -35,7 +35,10 @@ type Props<T> = {
   textoNuevo?: string;
   /** Texto por el que filtra el buscador */
   buscarEn?: (fila: T) => string;
-  acciones?: ReactNode;
+  /** Botones extra junto a «Nuevo»; si es función recibe `recargar` para refrescar la lista */
+  acciones?: ReactNode | ((recargar: () => void) => ReactNode);
+  /** Muestra «Eliminar» al editar (DELETE ruta/:id). El texto es la pregunta de confirmación. */
+  confirmarEliminar?: (fila: Record<string, any>) => string;
   sinEncabezado?: boolean;
   vacio?: string;
 };
@@ -44,7 +47,7 @@ const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLo
 
 /** Listado + formulario en modal para módulos de mantenimiento */
 export function Crud<T extends { id: number | string }>({
-  titulo, descripcion, ruta, rutaLista, columnas, campos, nuevo, aForm, aCuerpo, puedeEditar = true, textoNuevo = 'Nuevo', buscarEn, acciones, sinEncabezado, vacio,
+  titulo, descripcion, ruta, rutaLista, columnas, campos, nuevo, aForm, aCuerpo, puedeEditar = true, textoNuevo = 'Nuevo', buscarEn, acciones, confirmarEliminar, sinEncabezado, vacio,
 }: Props<T>) {
   const { datos, cargando, error, recargar } = useDatos<T[]>(rutaLista ?? ruta);
   const [form, setForm] = useState<Record<string, any> | null>(null);
@@ -74,6 +77,22 @@ export function Crud<T extends { id: number | string }>({
     }
   };
 
+  const [eliminando, setEliminando] = useState(false);
+  const eliminar = async () => {
+    if (!form?.id || !confirmarEliminar || !confirm(confirmarEliminar(form))) return;
+    setEliminando(true);
+    try {
+      await adm(`${ruta}/${form.id}`, { method: 'DELETE' });
+      avisos.ok('Eliminado');
+      setForm(null);
+      recargar();
+    } catch (e) {
+      avisos.error(e);
+    } finally {
+      setEliminando(false);
+    }
+  };
+
   const set = (k: string, v: any) => setForm((f) => ({ ...f!, [k]: v }));
 
   const barra = (
@@ -84,7 +103,7 @@ export function Crud<T extends { id: number | string }>({
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" className="w-48 pl-9" />
         </label>
       )}
-      {acciones}
+      {typeof acciones === 'function' ? acciones(recargar) : acciones}
       {puedeEditar && <Boton variante="oro" onClick={() => setForm({ ...nuevo })}><Plus size={16} /> {textoNuevo}</Boton>}
     </>
   );
@@ -102,7 +121,10 @@ export function Crud<T extends { id: number | string }>({
           titulo={form.id ? `Editar ${titulo.toLowerCase()}` : textoNuevo}
           onCerrar={() => setForm(null)}
           ancho="max-w-2xl"
-          pie={<><Boton variante="sutil" onClick={() => setForm(null)}>Cancelar</Boton><Boton variante="oro" cargando={guardando} onClick={guardar}>Guardar</Boton></>}
+          pie={<>
+            {form.id && confirmarEliminar && <Boton variante="peligro" cargando={eliminando} onClick={eliminar} className="mr-auto"><Trash2 size={15} /> Eliminar</Boton>}
+            <Boton variante="sutil" onClick={() => setForm(null)}>Cancelar</Boton><Boton variante="oro" cargando={guardando} onClick={guardar}>Guardar</Boton>
+          </>}
         >
           <div className="grid gap-4 sm:grid-cols-2">
             {campos.filter((c) => !c.si || c.si(form)).map((c) => (

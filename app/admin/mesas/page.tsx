@@ -1,9 +1,11 @@
 'use client';
 
+import { Rows3 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Crud } from '@/components/admin/Crud';
 import { QrMesas } from '@/components/admin/QrMesas';
-import { Encabezado, Insignia, Pestanas, useDatos } from '@/components/admin/ui';
+import { Boton, Campo, Encabezado, InputNum, Insignia, Modal, Pestanas, Select, useAvisos, useDatos } from '@/components/admin/ui';
+import { adm } from '@/lib/admin/api';
 import { dinero } from '@/lib/admin/moneda';
 
 type Zona = { id: number; nombre: string; descripcion: string | null; capacidad_mesa: number; max_personas: number; consumo_minimo_cop: number; es_vip: boolean; reservable: boolean; color: string; beneficios: string[]; orden: number; activo: boolean; mesas: number; puestos: number };
@@ -16,6 +18,7 @@ export default function MesasPage() {
     if (new URLSearchParams(location.search).get('tab') === 'qr') setTab('qr');
   }, []);
   const zonas = useDatos<Zona[]>('/salon/zonas');
+  const [lote, setLote] = useState<null | (() => void)>(null);
   const total = zonas.datos?.filter((z) => z.activo).reduce((s, z) => s + Number(z.puestos), 0) ?? 0;
 
   return (
@@ -24,12 +27,16 @@ export default function MesasPage() {
         <Pestanas valor={tab} onCambio={setTab} opciones={[{ valor: 'mesas', etiqueta: 'Mesas y asientos' }, { valor: 'zonas', etiqueta: 'Zonas' }, { valor: 'qr', etiqueta: 'Códigos QR' }]} />
       </Encabezado>
 
+      {lote && <CrearVarias zonas={(zonas.datos ?? []).filter((z) => z.activo)} onCerrar={() => setLote(null)} onListo={() => { lote(); setLote(null); }} />}
+
       {tab === 'qr' ? <QrMesas /> : tab === 'mesas' ? (
         <Crud<Mesa>
           sinEncabezado
           titulo="Mesa"
           ruta="/salon/mesas"
           textoNuevo="Nueva mesa"
+          acciones={(recargar) => <Boton variante="borde" onClick={() => setLote(() => () => { recargar(); zonas.recargar(); })}><Rows3 size={16} /> Crear varias</Boton>}
+          confirmarEliminar={(m) => `¿Eliminar la mesa ${m.numero}? Su código QR deja de funcionar. Las cuentas que ya tuvo se conservan en los reportes.`}
           buscarEn={(m) => `${m.numero} ${m.nombre ?? ''} ${m.zona}`}
           nuevo={{ zona_id: zonas.datos?.[0]?.id ?? null, numero: null, nombre: '', tipo: 'mesa', forma: 'redonda', capacidad: 6, pos_x: 50, pos_y: 50, activo: true }}
           columnas={[
@@ -57,6 +64,7 @@ export default function MesasPage() {
           titulo="Zona"
           ruta="/salon/zonas"
           textoNuevo="Nueva zona"
+          confirmarEliminar={(z) => `¿Eliminar la zona «${z.nombre}»? Solo se puede si ya no tiene mesas.`}
           nuevo={{ nombre: '', descripcion: '', capacidad_mesa: 6, max_personas: 20, consumo_minimo_cop: 0, es_vip: false, reservable: true, color: '#12805a', beneficios: [], orden: 10, activo: true }}
           columnas={[
             { titulo: 'Zona', celda: (z) => <span className="flex items-center gap-2 font-medium"><span className="h-3 w-3 rounded-full" style={{ background: z.color }} />{z.nombre}</span> },
@@ -80,5 +88,42 @@ export default function MesasPage() {
         />
       )}
     </div>
+  );
+}
+
+/** Crea «Mesa 1» … «Mesa N» de una vez; después se imprimen sus QR en la pestaña Códigos QR */
+function CrearVarias({ zonas, onCerrar, onListo }: { zonas: Zona[]; onCerrar: () => void; onListo: () => void }) {
+  const avisos = useAvisos();
+  const [f, setF] = useState({ zona_id: zonas[0]?.id ?? null as number | null, desde: 1 as number | null, hasta: 25 as number | null, capacidad: 4 as number | null });
+  const [guardando, setGuardando] = useState(false);
+  const cuantas = f.desde && f.hasta && f.hasta >= f.desde ? f.hasta - f.desde + 1 : 0;
+  const crear = async () => {
+    setGuardando(true);
+    try {
+      const r = await adm<{ creadas: number; omitidas: number[] }>('/salon/mesas/lote', { method: 'POST', body: { ...f, tipo: 'mesa', forma: 'cuadrada' } });
+      avisos.ok(`${r.creadas} mesas creadas${r.omitidas.length ? ` · ya existían: ${r.omitidas.join(', ')}` : ''}`);
+      onListo();
+    } catch (e) {
+      avisos.error(e);
+    } finally {
+      setGuardando(false);
+    }
+  };
+  return (
+    <Modal titulo="Crear varias mesas" subtitulo="Se llaman «Mesa 1», «Mesa 2»… y cada una trae su código QR para imprimir." onCerrar={onCerrar}
+      pie={<><Boton variante="sutil" onClick={onCerrar}>Cancelar</Boton><Boton variante="oro" cargando={guardando} disabled={!cuantas || !f.zona_id || !f.capacidad} onClick={crear}>Crear {cuantas || ''} mesas</Boton></>}>
+      {!zonas.length ? <p className="text-sm text-smoke">Primero crea una zona en la pestaña Zonas.</p> : (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Campo etiqueta="Desde la mesa"><InputNum valor={f.desde} onCambio={(n) => setF({ ...f, desde: n })} /></Campo>
+          <Campo etiqueta="Hasta la mesa"><InputNum valor={f.hasta} onCambio={(n) => setF({ ...f, hasta: n })} /></Campo>
+          <Campo etiqueta="Zona">
+            <Select value={f.zona_id ?? ''} onChange={(e) => setF({ ...f, zona_id: Number(e.target.value) })}>
+              {zonas.map((z) => <option key={z.id} value={z.id}>{z.nombre}</option>)}
+            </Select>
+          </Campo>
+          <Campo etiqueta="Puestos por mesa" ayuda="Se puede cambiar después en cada mesa."><InputNum valor={f.capacidad} onCambio={(n) => setF({ ...f, capacidad: n })} /></Campo>
+        </div>
+      )}
+    </Modal>
   );
 }
