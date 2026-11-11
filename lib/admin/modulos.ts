@@ -1,6 +1,6 @@
 import {
   type LucideIcon, Armchair, BarChart3, Bell, Beer, Boxes, CalendarCheck, ChefHat, CreditCard, HandCoins, Home, LayoutGrid, Megaphone,
-  MessageCircle, PartyPopper, Receipt, Settings, ShieldCheck, Sparkles, TabletSmartphone, TrendingUp, UserCog, Users, UtensilsCrossed, Wallet,
+  MessageCircle, PartyPopper, QrCode, Receipt, Settings, ShieldCheck, Sparkles, TabletSmartphone, TrendingUp, UserCog, Users, UtensilsCrossed, Wallet,
 } from 'lucide-react';
 
 export type Rol = 'admin' | 'gerente' | 'cajero' | 'mesonero' | 'barra' | 'cocina' | 'rrpp';
@@ -42,6 +42,7 @@ export const AREAS: Area[] = [
     modulos: [
       { href: '/admin/mesero', nombre: 'Mis mesas', descripcion: 'Tablet del mesonero: abre mesas, toma pedidos, entrega y pasa a caja', icono: TabletSmartphone, roles: SERVICIO, claves: 'tablet mesonero mesero pedidos tomar orden' },
       { href: '/admin/salon', nombre: 'Salón', descripcion: 'Plano de mesas y asientos en vivo, aforo y cuentas abiertas', icono: Armchair, roles: [...SERVICIO, 'rrpp'], claves: 'mesas plano asientos aforo puerta' },
+      { href: '/admin/pedidos-qr', nombre: 'Pedidos QR', descripcion: 'Lo que los clientes piden desde el QR de su mesa: aceptar o rechazar', icono: QrCode, roles: SERVICIO, claves: 'qr codigo mesa cliente autoservicio pedido celular escanear' },
       { href: '/admin/barra', nombre: 'Barra', descripcion: 'Venta rápida: los clientes van cancelando', icono: Beer, roles: COBRO, claves: 'venta rapida taburete tobo cerveza' },
       { href: '/admin/comandas', nombre: 'Comandas', descripcion: 'Pantalla de cocina y barra con los pedidos por preparar', icono: ChefHat, roles: [...SERVICIO, 'cocina'], claves: 'cocina kds pedidos' },
       { href: '/admin/caja', nombre: 'Caja', descripcion: 'Apertura, ingresos, egresos y cierre con conteo', icono: Wallet, roles: COBRO, claves: 'arqueo cierre fondo efectivo' },
@@ -54,7 +55,7 @@ export const AREAS: Area[] = [
     modulos: [
       { href: '/admin/productos', nombre: 'Productos', descripcion: 'Carta, presentaciones, precios por moneda, recetas y adicionales', icono: Sparkles, roles: GESTION, claves: 'menu carta precios recetas adicionales categorias hamburguesas cocteles' },
       { href: '/admin/inventario', nombre: 'Inventario', descripcion: 'Existencias, entradas, conteos, mermas y kardex', icono: Boxes, roles: [...GESTION, 'barra', 'cocina', 'cajero'], claves: 'stock insumos compras kardex cervezas botellas' },
-      { href: '/admin/mesas', nombre: 'Mesas y zonas', descripcion: 'Numeración de mesas, asientos y zonas del local', icono: Armchair, roles: GESTION, claves: 'zonas vip asientos capacidad numerar' },
+      { href: '/admin/mesas', nombre: 'Mesas y zonas', descripcion: 'Numeración de mesas, asientos, zonas y los QR para pegar en cada mesa', icono: Armchair, roles: GESTION, claves: 'zonas vip asientos capacidad numerar qr codigo imprimir' },
     ],
   },
   {

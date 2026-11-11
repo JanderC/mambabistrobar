@@ -15,6 +15,8 @@ type Props = {
   asientoInicial: number | null;
   onAgregar: (b: Borrador) => void;
   onCerrar: () => void;
+  /** Carta del cliente (QR): sin cifras de inventario y con textos para el comensal */
+  publico?: boolean;
 };
 
 function Contador({ valor, onCambio, max, min = 0, grande = false }: { valor: number; onCambio: (n: number) => void; max?: number; min?: number; grande?: boolean }) {
@@ -32,7 +34,7 @@ function Contador({ valor, onCambio, max, min = 0, grande = false }: { valor: nu
  * Arma un ítem: presentación, cantidad, puesto, ingredientes que se quitan, adicionales con precio
  * y —en los tobos— qué cervezas del inventario lo componen.
  */
-export function Configurador({ producto, categoria, moneda, asientos, asientoInicial, onAgregar, onCerrar }: Props) {
+export function Configurador({ producto, categoria, moneda, asientos, asientoInicial, onAgregar, onCerrar, publico = false }: Props) {
   const [vId, setVId] = useState(producto.variantes.find((v) => v.disponibles !== 0)?.id ?? producto.variantes[0].id);
   const variante = producto.variantes.find((v) => v.id === vId)!;
   const [cantidad, setCantidad] = useState(1);
@@ -94,7 +96,7 @@ export function Configurador({ producto, categoria, moneda, asientos, asientoIni
         <div className="flex w-full flex-wrap items-center justify-between gap-3">
           <Contador grande valor={cantidad} min={1} max={maxPorStock} onCambio={setCantidad} />
           <Boton variante="oro" tam="lg" className="flex-1 sm:flex-none" disabled={faltan !== 0 && requeridas > 0} onClick={agregar}>
-            {requeridas > 0 && faltan !== 0 ? (faltan > 0 ? `Faltan ${faltan} por elegir` : `Sobran ${-faltan}`) : <>Agregar · {dinero(unitario * cantidad, moneda)}</>}
+            {requeridas > 0 && faltan !== 0 ? (faltan > 0 ? `Faltan ${faltan} por elegir` : `Sobran ${-faltan}`) : <>{publico ? 'Agregar al pedido' : 'Agregar'} · {dinero(unitario * cantidad, moneda)}</>}
           </Boton>
         </div>
       }
@@ -110,7 +112,7 @@ export function Configurador({ producto, categoria, moneda, asientos, asientoIni
                   className={`rounded-2xl border p-3 text-left transition disabled:opacity-40 ${v.id === vId ? 'border-gold bg-gold/15' : 'border-gold/15 hover:border-gold/40'}`}>
                   <p className="text-sm font-medium">{v.presentacion}</p>
                   <p className="font-display text-lg text-gold-light">{dinero(v.precios[moneda], moneda)}</p>
-                  {v.disponibles === 0 ? <p className="text-[11px] text-red-300">Agotado</p> : v.disponibles != null && v.disponibles <= 5 && <p className="text-[11px] text-gold">Quedan {v.disponibles}</p>}
+                  {v.disponibles === 0 ? <p className="text-[11px] text-red-300">Agotado</p> : !publico && v.disponibles != null && v.disponibles <= 5 && <p className="text-[11px] text-gold">Quedan {v.disponibles}</p>}
                 </button>
               ))}
             </div>
@@ -134,7 +136,7 @@ export function Configurador({ producto, categoria, moneda, asientos, asientoIni
                     <div className="min-w-0 flex-1">
                       <p className="font-medium">{o.nombre}</p>
                       <p className="text-xs text-smoke">
-                        {o.stock} en inventario{o.recargo[moneda] > 0 && <span className="text-gold-light"> · +{dinero(o.recargo[moneda], moneda)} c/u</span>}
+                        {publico ? (o.stock < cantidad ? 'Agotada' : 'Disponible') : `${o.stock} en inventario`}{o.recargo[moneda] > 0 && <span className="text-gold-light"> · +{dinero(o.recargo[moneda], moneda)} c/u</span>}
                       </p>
                     </div>
                     <Boton tam="sm" variante="sutil" disabled={faltan <= 0 || o.stock < cantidad * (n + faltan)} onClick={() => setSel({ ...sel, [o.insumo_id]: n + faltan })}>
@@ -201,7 +203,7 @@ export function Configurador({ producto, categoria, moneda, asientos, asientoIni
         )}
 
         <section>
-          <h3 className="mb-2 text-xs tracking-wider text-gold uppercase">Nota para {categoria.estacion === 'cocina' ? 'cocina' : 'barra'}</h3>
+          <h3 className="mb-2 text-xs tracking-wider text-gold uppercase">{publico ? '¿Alguna indicación?' : `Nota para ${categoria.estacion === 'cocina' ? 'cocina' : 'barra'}`}</h3>
           <Input value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Término medio, sin hielo, bien fría…" maxLength={200} />
         </section>
       </div>

@@ -74,6 +74,8 @@ export default function ConfiguracionPage() {
             <Interruptor activo={a.servicio_auto_mesas} onCambio={(v) => setA({ ...a, servicio_auto_mesas: v })} etiqueta="Agregar el servicio automáticamente al abrir cuentas de mesa" />
             <br />
             <Interruptor activo={a.permitir_venta_sin_stock} onCambio={(v) => setA({ ...a, permitir_venta_sin_stock: v })} etiqueta="Permitir vender aunque el inventario quede en negativo" />
+            <br />
+            <Interruptor activo={a.pedidos_qr_activo ?? true} onCambio={(v) => setA({ ...a, pedidos_qr_activo: v })} etiqueta="Los clientes pueden pedir desde el QR de la mesa (si se apaga, el QR solo muestra la carta)" />
           </div>
           <Campo etiqueta="Texto al pie del ticket"><Input value={a.ticket_pie ?? ''} onChange={(e) => setA({ ...a, ticket_pie: e.target.value })} /></Campo>
           <Boton variante="oro" cargando={guardando} onClick={() => guardar('/config/ajustes', a)}>Guardar sistema</Boton>

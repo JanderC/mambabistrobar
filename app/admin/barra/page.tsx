@@ -4,6 +4,7 @@ import { Armchair, Clock, Plus, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { BandejaQR } from '@/components/admin/pos/BandejaQR';
 import { Boton, Cargando, Encabezado, ErrorCaja, Input, Insignia, Tarjeta, Vacio, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
 import { type Moneda, dinero, hace } from '@/lib/admin/moneda';
@@ -37,6 +38,9 @@ export default function BarraPage() {
       <Encabezado titulo="Barra" descripcion="Venta rápida: marca, cobra y entrega. Si el cliente sigue pidiendo, su cuenta queda abierta y va cancelando ronda por ronda.">
         <Link href="/admin/salon" className="inline-flex h-10 items-center gap-2 rounded-xl border border-gold/30 px-4 text-sm text-gold-light hover:bg-gold/10"><Armchair size={15} /> Ver taburetes</Link>
       </Encabezado>
+
+      {/* Lo que piden los clientes desde el QR de su mesa: aparece arriba de todo hasta que se atiende */}
+      <BandejaQR compacta />
 
       <Tarjeta className="mb-5 flex flex-wrap items-end gap-3 p-4">
         <label className="min-w-52 flex-1">

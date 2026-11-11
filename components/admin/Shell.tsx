@@ -337,6 +337,11 @@ function EnVivo() {
       avisos.info(`💳 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''} pasó a caja (${e.mesonero ?? 'mesonero'})`);
     }
     if (e.tipo === 'cobro' && e.accion === 'cobrado' && e.mesonero_id === usuario?.id && !cobra) avisos.ok(`✓ ${e.lugar}: cuenta cobrada en caja`);
+    // Pedido de un cliente desde el QR de su mesa: lo atiende la barra (o caja / gerencia)
+    if (e.tipo === 'pedido_qr' && e.accion === 'nuevo' && cobra) {
+      sonar('qr');
+      avisos.info(`📱 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''} pidió desde el QR (${e.items} ${e.items === 1 ? 'producto' : 'productos'}). Confírmalo en Barra o Pedidos QR.`);
+    }
   });
 
   return (

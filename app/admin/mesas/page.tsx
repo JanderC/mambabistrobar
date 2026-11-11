@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Crud } from '@/components/admin/Crud';
+import { QrMesas } from '@/components/admin/QrMesas';
 import { Encabezado, Insignia, Pestanas, useDatos } from '@/components/admin/ui';
 import { dinero } from '@/lib/admin/moneda';
 
@@ -9,17 +10,21 @@ type Zona = { id: number; nombre: string; descripcion: string | null; capacidad_
 type Mesa = { id: number; zona_id: number; zona: string; numero: number; nombre: string | null; tipo: string; forma: string; capacidad: number; pos_x: number; pos_y: number; activo: boolean; asientos: { numero: number; etiqueta: string }[] };
 
 export default function MesasPage() {
-  const [tab, setTab] = useState<'mesas' | 'zonas'>('mesas');
+  const [tab, setTab] = useState<'mesas' | 'zonas' | 'qr'>('mesas');
+  // Enlace directo a los QR desde Pedidos QR: /admin/mesas?tab=qr
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get('tab') === 'qr') setTab('qr');
+  }, []);
   const zonas = useDatos<Zona[]>('/salon/zonas');
   const total = zonas.datos?.filter((z) => z.activo).reduce((s, z) => s + Number(z.puestos), 0) ?? 0;
 
   return (
     <div>
       <Encabezado titulo="Mesas y zonas" descripcion={`Numeración del local. Cada mesa genera sus asientos numerados (M12-3, B-07). Capacidad sentada total: ${total} personas.`}>
-        <Pestanas valor={tab} onCambio={setTab} opciones={[{ valor: 'mesas', etiqueta: 'Mesas y asientos' }, { valor: 'zonas', etiqueta: 'Zonas' }]} />
+        <Pestanas valor={tab} onCambio={setTab} opciones={[{ valor: 'mesas', etiqueta: 'Mesas y asientos' }, { valor: 'zonas', etiqueta: 'Zonas' }, { valor: 'qr', etiqueta: 'Códigos QR' }]} />
       </Encabezado>
 
-      {tab === 'mesas' ? (
+      {tab === 'qr' ? <QrMesas /> : tab === 'mesas' ? (
         <Crud<Mesa>
           sinEncabezado
           titulo="Mesa"

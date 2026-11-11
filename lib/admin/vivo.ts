@@ -14,6 +14,7 @@ export type EventoVivo =
   | { tipo: 'comanda'; estado: string; items: { id: number; nombre: string; cantidad: number; cuenta_id: number; lugar: string; cliente: string | null; mesonero_id: number | null; estacion: string }[] }
   | { tipo: 'cobro'; accion: 'solicitado' | 'cancelado' | 'cobrado'; cuenta_id: number; numero: string; lugar: string; cliente: string | null; mesonero: string | null; mesonero_id: number | null }
   | { tipo: 'cuenta'; accion: string; cuenta_id: number; mesonero_id?: number | null }
+  | { tipo: 'pedido_qr'; accion: 'nuevo' | 'aceptado' | 'rechazado'; id: number; mesa_id: number; lugar: string; cliente: string | null; items: number; total: number; moneda: string; cuenta_id?: number | null }
   | { tipo: 'whatsapp'; accion: 'conexion'; estado: string }
   | { tipo: 'whatsapp'; accion: 'mensaje'; jid: string; de_mi: boolean; texto: string; nuevo: boolean }
   | { tipo: 'whatsapp'; accion: 'estado'; jid: string; wa_id: string; estado: string }
@@ -145,7 +146,8 @@ if (typeof window !== 'undefined') {
   window.addEventListener('pointerdown', desbloquear, { passive: true });
 }
 
-const TONOS: Record<'pedido' | 'listo' | 'cobro', number[]> = {
+const TONOS: Record<'pedido' | 'listo' | 'cobro' | 'qr', number[]> = {
+  qr: [784, 988, 1175, 988], // cuatro notas: un cliente pidió desde el QR de su mesa
   pedido: [880, 1175],        // dos notas ascendentes: llegó comanda
   listo: [1047, 1319, 1568],  // tres: plato listo para llevar
   cobro: [659, 523],          // dos descendentes: cuenta en caja
