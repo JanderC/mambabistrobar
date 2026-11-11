@@ -1,9 +1,10 @@
 'use client';
 
-import { BellRing, Check, ChefHat, Clock, Martini, Minus, Plus, ShoppingBag, Undo2, Users, Wallet } from 'lucide-react';
+import { BellRing, Check, ChefHat, Clock, Martini, Minus, Plus, Search, ShoppingBag, Undo2, Users, Wallet, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useSesion } from '@/components/admin/Sesion';
+import { NombreCliente } from '@/components/admin/pos/NombreCliente';
 import { PasarACaja } from '@/components/admin/pos/PasarACaja';
 import { Boton, Cargando, ErrorCaja, Input, Insignia, Modal, Pestanas, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
@@ -55,7 +56,14 @@ export default function MeseroPage() {
     }
   };
 
+  const [q, setQ] = useState('');
   const conListos = (datos ?? []).filter((c) => c.listos.length);
+  // Buscar por nombre, seña o número de mesa ("7", "gorra", "laura")
+  const visibles = useMemo(() => {
+    const n = q.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+    if (!n) return datos ?? [];
+    return (datos ?? []).filter((c) => `${c.nombre_cliente ?? ''} ${etiquetaLugar(c)} ${c.numero} ${c.mesonero ?? ''}`.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().includes(n));
+  }, [datos, q]);
   const hora = new Date().getHours();
 
   return (
@@ -97,8 +105,19 @@ export default function MeseroPage() {
         </section>
       )}
 
+      {/* ------------------------------------------------------------ Buscar entre mis mesas */}
+      {(datos?.length ?? 0) > 3 && (
+        <label className="relative mb-4 block">
+          <Search size={18} className="absolute top-1/2 left-4 -translate-y-1/2 text-smoke" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por nombre, seña o número de mesa…" className="!h-14 pl-12 !text-lg" />
+          {q && <button onClick={() => setQ('')} className="absolute top-1/2 right-2 grid h-10 w-10 -translate-y-1/2 place-items-center text-smoke" aria-label="Limpiar"><X size={18} /></button>}
+        </label>
+      )}
+
       {/* ------------------------------------------------------------ Mis mesas */}
-      {cargando ? <Cargando /> : error ? <ErrorCaja mensaje={error} onReintentar={recargar} /> : !datos?.length ? (
+      {cargando ? <Cargando /> : error ? <ErrorCaja mensaje={error} onReintentar={recargar} /> : q && !visibles.length ? (
+        <p className="py-12 text-center text-smoke">Ninguna cuenta coincide con «{q}».</p>
+      ) : !datos?.length ? (
         <button onClick={() => setNueva(true)} className="grid w-full place-items-center rounded-3xl border-2 border-dashed border-gold/25 px-6 py-20 text-center transition hover:border-gold">
           <span className="grid h-20 w-20 place-items-center rounded-full bg-gold/15 text-gold"><Plus size={40} /></span>
           <span className="mt-4 font-display text-2xl">{ver === 'mias' ? 'Aún no tienes mesas' : 'El salón está vacío'}</span>
@@ -106,7 +125,7 @@ export default function MeseroPage() {
         </button>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {datos.map((c) => {
+          {visibles.map((c) => {
             const saldo = c.total - c.pagado;
             const enCaja = !!c.cobro_solicitado_en;
             return (
@@ -126,6 +145,7 @@ export default function MeseroPage() {
                 </button>
 
                 <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+                  {!c.nombre_cliente && <Insignia color="rojo">Sin nombre</Insignia>}
                   {Number(c.items) === 0 && <Insignia>Sin pedido aún</Insignia>}
                   {Number(c.en_cola) > 0 && <Insignia>{c.en_cola} en cola</Insignia>}
                   {Number(c.preparando) > 0 && <Insignia color="oro">{c.preparando} preparándose</Insignia>}
@@ -203,9 +223,13 @@ function NuevaMesa({ onCerrar }: { onCerrar: () => void }) {
               );
             })}
           </div>
-          <div className="grid grid-cols-2 gap-2 border-t border-white/5 pt-4">
-            <Boton tam="lg" cargando={ocupado} onClick={() => abrir({ tipo: 'barra', personas: 1 })}><Martini size={18} /> Cliente en barra</Boton>
-            <Boton tam="lg" cargando={ocupado} onClick={() => abrir({ tipo: 'llevar', personas: 1 })}><ShoppingBag size={18} /> Para llevar</Boton>
+          <div className="space-y-3 border-t border-white/5 pt-4">
+            <p className="text-xs tracking-wider text-gold uppercase">¿Sin mesa? Cliente en barra o para llevar</p>
+            <NombreCliente valor={nombre} onCambio={setNombre} grande={false} />
+            <div className="grid grid-cols-2 gap-2">
+              <Boton tam="lg" cargando={ocupado} onClick={() => abrir({ tipo: 'barra', personas: 1 })}><Martini size={18} /> Cliente en barra</Boton>
+              <Boton tam="lg" cargando={ocupado} onClick={() => abrir({ tipo: 'llevar', personas: 1 })}><ShoppingBag size={18} /> Para llevar</Boton>
+            </div>
           </div>
         </div>
       ) : (
@@ -221,8 +245,8 @@ function NuevaMesa({ onCerrar }: { onCerrar: () => void }) {
             </div>
           </div>
           <div>
-            <p className="mb-2 text-xs tracking-wider text-gold uppercase">Nombre del cliente <span className="text-smoke normal-case">· aparece en la comanda de barra y cocina</span></p>
-            <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej. Laura, cumpleaños" className="!h-14 !text-lg" maxLength={60} />
+            <p className="mb-2 text-xs tracking-wider text-gold uppercase">¿A nombre de quién? <span className="text-smoke normal-case">· aparece en la cuenta y en la comanda</span></p>
+            <NombreCliente valor={nombre} onCambio={setNombre} autoFocus onEnter={() => abrir({ tipo: 'mesa', mesa_id: mesa.id, personas })} />
           </div>
           <div className="grid grid-cols-[auto_1fr] gap-2">
             <Boton tam="lg" variante="sutil" onClick={() => setMesa(null)}>Otra mesa</Boton>

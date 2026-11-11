@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, Ban, BellRing, Check, ChefHat, ChevronRight, HandCoins, Martini, Minus, MoreHorizontal, Percent, Plus, Printer, Search, Send, Trash2, Users, Wallet, X } from 'lucide-react';
+import { ArrowLeft, Ban, BellRing, Check, ChefHat, ChevronRight, HandCoins, Martini, Minus, MoreHorizontal, Percent, Plus, Printer, Search, Send, Trash2, UserRound, Users, Wallet, X } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -9,6 +9,7 @@ import { Cobro } from '@/components/admin/pos/Cobro';
 import { PasarACaja } from '@/components/admin/pos/PasarACaja';
 import { Configurador } from '@/components/admin/pos/Configurador';
 import { Fiar } from '@/components/admin/pos/Fiar';
+import { NombreCliente } from '@/components/admin/pos/NombreCliente';
 import { type Borrador, type Catalogo, type CategoriaCat, type Cuenta, type ItemCuenta, type ProductoCat, tituloCuenta } from '@/components/admin/pos/tipos';
 import { Area, Boton, Campo, Cargando, ErrorCaja, Input, InputNum, Insignia, Interruptor, Modal, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
@@ -29,7 +30,9 @@ export default function CuentaPage() {
   const catalogo = useDatos<Catalogo>('/pos/catalogo', 60_000);
   const avisos = useAvisos();
 
-  const [catId, setCatId] = useState<number | 'todas'>('todas');
+  // null = automático: arranca en «Más pedidos» si ya hay ventas, si no en «Todo»
+  const [catSel, setCatId] = useState<number | 'todas' | 'top' | null>(null);
+  const [renombrar, setRenombrar] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [config, setConfig] = useState<{ producto: ProductoCat; categoria: CategoriaCat } | null>(null);
   const [borrador, setBorrador] = useState<Borrador[]>([]);
@@ -60,11 +63,21 @@ export default function CuentaPage() {
   const esDirecto = directo ?? c?.tipo === 'barra';
   const asientos = c?.mesa_tipo === 'barra' ? 0 : (c?.mesa_capacidad ?? 0);
 
+  const hayTop = !!cat?.categorias.some((x) => x.productos.some((p) => (p.vendidos ?? 0) > 0));
+  const catId = catSel ?? (hayTop ? 'top' : 'todas');
+
   const productos = useMemo(() => {
     if (!cat) return [];
     const n = sinTildes(q.trim());
+    // Lo que más sale, primero: los 16 productos más vendidos de los últimos 30 días
+    if (catId === 'top' && !n)
+      return cat.categorias
+        .flatMap((categoria) => categoria.productos.map((producto) => ({ producto, categoria })))
+        .filter(({ producto }) => (producto.vendidos ?? 0) > 0)
+        .sort((a, b) => (b.producto.vendidos ?? 0) - (a.producto.vendidos ?? 0))
+        .slice(0, 16);
     return cat.categorias
-      .filter((x) => n || catId === 'todas' || x.id === catId)
+      .filter((x) => n || catId === 'todas' || catId === 'top' || x.id === catId)
       .flatMap((categoria) => categoria.productos.filter((p) => !n || sinTildes(p.nombre).includes(n)).map((producto) => ({ producto, categoria })));
   }, [cat, catId, q]);
 
@@ -164,7 +177,17 @@ export default function CuentaPage() {
         <Link href={usuario?.rol === 'mesonero' ? '/admin/mesero' : c.tipo === 'barra' && !c.mesa_id ? '/admin/barra' : '/admin/salon'} onClick={(e) => { if (borrador.length && !confirm(`Tienes ${unidadesBorrador} producto(s) sin enviar. ¿Salir y descartarlos?`)) e.preventDefault(); }}
           className="grid h-11 w-11 place-items-center rounded-xl border border-gold/20 text-smoke hover:text-ivory" aria-label="Volver"><ArrowLeft size={19} /></Link>
         <div className="min-w-0">
-          <p className="font-display text-xl leading-tight">{tituloCuenta(c)} {c.nombre_cliente && <span className="text-base text-smoke">· {c.nombre_cliente}</span>}</p>
+          <p className="flex flex-wrap items-center gap-x-2 font-display text-xl leading-tight">
+            {tituloCuenta(c)}
+            {/* A nombre de quién va la cuenta: siempre visible y se cambia en un toque */}
+            {c.nombre_cliente ? (
+              <button onClick={() => abierta && setRenombrar(c.nombre_cliente ?? '')} className="rounded-lg px-1 text-gold-light hover:bg-white/5" title="Cambiar nombre">· {c.nombre_cliente}</button>
+            ) : abierta && (
+              <button onClick={() => setRenombrar('')} className="flex h-9 items-center gap-1.5 rounded-full border border-red-400/50 bg-red-500/10 px-3 font-sans text-sm text-red-200 active:bg-red-500/20">
+                <UserRound size={15} /> ¿A nombre de quién?
+              </button>
+            )}
+          </p>
           <p className="flex flex-wrap items-center gap-x-3 text-xs text-smoke">
             <span>{c.numero}</span>{c.zona && <span>{c.zona}</span>}
             <span className="flex items-center gap-1"><Users size={12} /> {c.personas}</span>
@@ -200,6 +223,7 @@ export default function CuentaPage() {
                   {q && <button onClick={() => setQ('')} className="absolute top-1/2 right-3 -translate-y-1/2 text-smoke" aria-label="Limpiar"><X size={15} /></button>}
                 </label>
                 <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
+                  {hayTop && <button onClick={() => { setCatId('top'); setQ(''); }} className={`h-10 shrink-0 rounded-full px-4 text-sm whitespace-nowrap ${catId === 'top' ? 'bg-gold font-semibold text-void' : 'border border-gold/15 text-smoke'}`}>🔥 Más pedidos</button>}
                   <button onClick={() => setCatId('todas')} className={`h-10 shrink-0 rounded-full px-4 text-sm ${catId === 'todas' ? 'bg-gold font-semibold text-void' : 'border border-gold/15 text-smoke'}`}>Todo</button>
                   {cat.categorias.map((x) => (
                     <button key={x.id} onClick={() => { setCatId(x.id); setQ(''); }} className={`h-10 shrink-0 rounded-full px-4 text-sm whitespace-nowrap ${catId === x.id ? 'bg-gold font-semibold text-void' : 'border border-gold/15 text-smoke hover:text-ivory'}`}>
@@ -435,6 +459,18 @@ export default function CuentaPage() {
           onCerrar={() => setConfig(null)}
           onAgregar={(b) => { setBorrador([...borrador, b]); setConfig(null); }}
         />
+      )}
+
+      {renombrar != null && (
+        <Modal titulo="¿A nombre de quién va la cuenta?" subtitulo="Nombre o seña para encontrarla rápido en barra y caja" onCerrar={() => setRenombrar(null)} ancho="max-w-lg"
+          pie={<><Boton variante="sutil" onClick={() => setRenombrar(null)}>Cancelar</Boton>
+            <Boton variante="oro" tam="lg" cargando={ocupado} disabled={!renombrar.trim()} onClick={async () => {
+              if (await accion(() => adm(`/cuentas/${c.id}`, { method: 'PATCH', body: { nombre_cliente: renombrar.trim() } }), 'Nombre guardado')) setRenombrar(null);
+            }}>Guardar</Boton></>}>
+          <NombreCliente valor={renombrar} onCambio={setRenombrar} autoFocus onEnter={async () => {
+            if (renombrar.trim() && await accion(() => adm(`/cuentas/${c.id}`, { method: 'PATCH', body: { nombre_cliente: renombrar.trim() } }), 'Nombre guardado')) setRenombrar(null);
+          }} />
+        </Modal>
       )}
 
       {aCaja && <PasarACaja cuentaId={c.id} onCerrar={() => setACaja(false)} onEnviada={(nueva) => { cuenta.setDatos(nueva); setACaja(false); }} />}
