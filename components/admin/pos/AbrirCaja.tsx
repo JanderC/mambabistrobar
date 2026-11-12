@@ -29,7 +29,8 @@ export function AbrirCajaRapida({ onAbierta }: { onAbierta: () => void }) {
   // La de barra si existe; si no, la primera cerrada. El fondo arranca con lo que dejó el último cierre.
   useEffect(() => {
     if (cajaId || !cerradas.length) return;
-    const c = cerradas.find((x) => /principal/i.test(x.nombre)) ?? cerradas[0];
+    const mia = Number(localStorage.getItem('mamba_caja'));
+    const c = cerradas.find((x) => x.id === mia) ?? cerradas.find((x) => /principal/i.test(x.nombre)) ?? cerradas[0];
     setCajaId(c.id);
   }, [cerradas, cajaId]);
   const caja = cerradas.find((c) => c.id === cajaId);

@@ -74,7 +74,9 @@ export function MovimientosDia() {
   const m = x.moneda;
   const t = x.totales;
   const pagos = verTodo ? x.pagos : x.pagos.slice(0, 15);
-  const cajaAbierta = x.sesiones.find((s) => s.estado === 'abierta');
+  // Lo que debería haber en los cajones ahora: la suma de las cajas abiertas (cada una se ve abajo en «Turnos de caja»)
+  const abiertas = x.sesiones.filter((s) => s.estado === 'abierta');
+  const cajaAbierta = abiertas.length ? { esperado: Object.fromEntries(MONEDAS.map((mo) => [mo, abiertas.reduce((t, s) => t + Number(s.esperado[mo]), 0)])) as PorMoneda } : null;
 
   return (
     <div>
@@ -98,7 +100,7 @@ export function MovimientosDia() {
             <thead>
               <tr className="text-right text-[11px] tracking-wider text-smoke uppercase">
                 <th className="py-2 text-left">Moneda</th><th className="py-2">Efectivo</th><th className="py-2">Otros métodos</th><th className="py-2">Total cobrado</th><th className="py-2">Ingresos / egresos</th>
-                {cajaAbierta && <th className="py-2">En el cajón ahora</th>}
+                {cajaAbierta && <th className="py-2">{abiertas.length > 1 ? `En los ${abiertas.length} cajones` : 'En el cajón ahora'}</th>}
               </tr>
             </thead>
             <tbody>
@@ -166,13 +168,22 @@ export function MovimientosDia() {
           <Tarjeta className="p-4">
             <h3 className="mb-2 font-display text-base text-gold-light">Turnos de caja</h3>
             {!x.sesiones.length ? <p className="text-sm text-smoke">No se abrió caja este día.</p> : x.sesiones.map((s) => (
-              <div key={s.id} className="flex items-center gap-2 border-b border-white/5 py-2 text-sm last:border-0">
-                {s.estado === 'abierta' ? <Unlock size={15} className="text-venom" /> : <Lock size={15} className="text-smoke" />}
-                <span className="min-w-0 flex-1">
-                  <span className="block">{s.caja} <span className="text-smoke">· {s.usuario}</span></span>
-                  <span className="block text-[11px] text-smoke">{soloHora(s.fecha_apertura)} → {s.fecha_cierre ? soloHora(s.fecha_cierre) : 'abierta'}</span>
-                </span>
-                <Insignia color={s.estado === 'abierta' ? 'verde' : 'gris'}>{s.estado === 'abierta' ? 'Abierta' : 'Cerrada'}</Insignia>
+              <div key={s.id} className="border-b border-white/5 py-2 text-sm last:border-0">
+                <div className="flex items-center gap-2">
+                  {s.estado === 'abierta' ? <Unlock size={15} className="text-venom" /> : <Lock size={15} className="text-smoke" />}
+                  <span className="min-w-0 flex-1">
+                    <span className="block">{s.caja} <span className="text-smoke">· {s.usuario}</span></span>
+                    <span className="block text-[11px] text-smoke">{soloHora(s.fecha_apertura)} → {s.fecha_cierre ? soloHora(s.fecha_cierre) : 'abierta'}</span>
+                  </span>
+                  <Insignia color={s.estado === 'abierta' ? 'verde' : 'gris'}>{s.estado === 'abierta' ? 'Abierta' : 'Cerrada'}</Insignia>
+                </div>
+                {/* Lo que debería haber en el cajón de esta caja ahora */}
+                {s.estado === 'abierta' && (
+                  <p className="mt-1 flex flex-wrap gap-x-3 pl-6 text-[11px]">
+                    {MONEDAS.filter((mo) => Number(s.esperado[mo])).map((mo) => <span key={mo} className={COLOR[mo]}>{dinero(s.esperado[mo], mo)}</span>)}
+                    {MONEDAS.every((mo) => !Number(s.esperado[mo])) && <span className="text-smoke">cajón vacío</span>}
+                  </p>
+                )}
               </div>
             ))}
           </Tarjeta>

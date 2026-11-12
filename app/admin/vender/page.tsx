@@ -46,7 +46,9 @@ function Vender() {
   const moneda: Moneda = ajustes.datos?.moneda_principal ?? 'COP';
   const buscador = useRef<HTMLInputElement>(null);
   const cajas = useDatos<CajaEstado[]>('/caja', 15_000);
-  const cajaAbierta = cajas.datos?.find((c) => c.sesion);
+  // La caja de ESTA computadora (la última en que se abrió o cobró aquí); si no, la primera abierta
+  const miCaja = typeof window === 'undefined' ? 0 : Number(localStorage.getItem('mamba_caja'));
+  const cajaAbierta = cajas.datos?.find((c) => c.sesion && c.id === miCaja) ?? cajas.datos?.find((c) => c.sesion);
   const [abrirCaja, setAbrirCaja] = useState(false);
 
   const [q, setQ] = useState('');

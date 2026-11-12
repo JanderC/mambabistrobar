@@ -1,8 +1,9 @@
 'use client';
 
-import { ArrowDownLeft, ArrowUpRight, Lock, Unlock } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, Lock, Pencil, Plus, Unlock } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useSesion } from '@/components/admin/Sesion';
 import { Area, Boton, Campo, Cargando, Encabezado, ErrorCaja, Input, InputNum, Insignia, Modal, Pestanas, Select, Tabla, Tarjeta, Vacio, useAvisos, useDatos } from '@/components/admin/ui';
 import { MovimientosDia } from '@/components/admin/caja/MovimientosDia';
 import { ColaCobro } from '@/components/admin/pos/ColaCobro';
@@ -27,6 +28,32 @@ export default function CajaPage() {
   const [vista, setVista] = useState<'dia' | 'cola' | 'turno' | 'historial'>('dia');
   const [enCola, setEnCola] = useState<number | undefined>(undefined);
   const caja = cajas.datos?.find((c) => c.id === cajaId) ?? cajas.datos?.[0];
+  const { es } = useSesion();
+  const avisos = useAvisos();
+  // Crear o renombrar: { id } = renombrar esa caja; sin id = caja nueva
+  const [editarCaja, setEditarCaja] = useState<{ id?: number; nombre: string } | null>(null);
+  const [guardandoCaja, setGuardandoCaja] = useState(false);
+  const sugerirNombre = () => {
+    const usados = new Set((cajas.datos ?? []).map((c) => c.nombre.toLowerCase()));
+    return ['Caja Principal', 'Caja Secundaria', ...Array.from({ length: 20 }, (_, i) => `Caja ${i + 3}`)].find((n) => !usados.has(n.toLowerCase())) ?? 'Caja nueva';
+  };
+  const guardarCaja = async () => {
+    if (!editarCaja) return;
+    setGuardandoCaja(true);
+    try {
+      const r = editarCaja.id
+        ? await adm<{ id: number }>(`/cajas/${editarCaja.id}`, { method: 'PUT', body: { nombre: editarCaja.nombre } })
+        : await adm<{ id: number }>('/cajas', { method: 'POST', body: { nombre: editarCaja.nombre } });
+      avisos.ok(editarCaja.id ? 'Caja renombrada' : `${editarCaja.nombre} creada: ábrela con su fondo`);
+      if (!editarCaja.id) { setCajaId(r.id); localStorage.setItem('mamba_caja', String(r.id)); }
+      setEditarCaja(null);
+      cajas.recargar();
+    } catch (e) {
+      avisos.error(e);
+    } finally {
+      setGuardandoCaja(false);
+    }
+  };
 
   useEffect(() => {
     if (!cajaId && cajas.datos?.length) setCajaId(Number(localStorage.getItem('mamba_caja')) || cajas.datos[0].id);
@@ -67,11 +94,27 @@ export default function CajaPage() {
                 </span>
               </button>
             ))}
+            {es('gerente') && (
+              <>
+                {caja && <button onClick={() => setEditarCaja({ id: caja.id, nombre: caja.nombre })} className="flex items-center gap-2 rounded-2xl border border-gold/15 px-4 py-3 text-sm text-smoke hover:text-ivory" title="Cambiar el nombre de la caja elegida"><Pencil size={15} /> Renombrar</button>}
+                <button onClick={() => setEditarCaja({ nombre: sugerirNombre() })} className="flex items-center gap-2 rounded-2xl border border-dashed border-gold/40 px-4 py-3 text-sm text-gold-light hover:bg-gold/10"><Plus size={16} /> Nueva caja</button>
+              </>
+            )}
           </div>
+          {(cajas.datos?.length ?? 0) > 1 && <p className="-mt-2 mb-4 text-xs text-smoke">Cada caja lleva su turno aparte: su fondo, lo que cobra y su cierre. En cada computadora se cobra en la caja que elijas aquí.</p>}
           {caja && (caja.sesion ? <Turno key={caja.sesion.id} sesionId={caja.sesion.id} alCambiar={cajas.recargar} /> : <Abrir key={caja.id} caja={caja} alAbrir={cajas.recargar} />)}
         </>
       )}
       {vista === 'historial' && <Historial />}
+
+      {editarCaja && (
+        <Modal titulo={editarCaja.id ? 'Renombrar caja' : 'Nueva caja'} subtitulo={editarCaja.id ? undefined : 'Cada caja lleva su propio turno: se abre y se cierra por separado.'} onCerrar={() => setEditarCaja(null)} ancho="max-w-md"
+          pie={<><Boton variante="sutil" onClick={() => setEditarCaja(null)}>Cancelar</Boton><Boton variante="oro" cargando={guardandoCaja} disabled={editarCaja.nombre.trim().length < 2} onClick={guardarCaja}>{editarCaja.id ? 'Guardar' : 'Crear caja'}</Boton></>}>
+          <Campo etiqueta="Nombre">
+            <Input autoFocus value={editarCaja.nombre} onChange={(e) => setEditarCaja({ ...editarCaja, nombre: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && guardarCaja()} placeholder="Caja Secundaria" />
+          </Campo>
+        </Modal>
+      )}
     </div>
   );
 }
