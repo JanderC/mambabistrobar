@@ -43,7 +43,7 @@ export function Cobro({ cuenta, tasa, onCerrar, onPagado, cerrarAlPagar }: { cue
   useEffect(() => {
     if (cajaId || !abiertas.length) return;
     const guardada = Number(localStorage.getItem('mamba_caja'));
-    setCajaId(abiertas.find((c) => c.id === guardada)?.id ?? (cuenta.tipo === 'barra' ? abiertas.find((c) => /barra/i.test(c.nombre))?.id : undefined) ?? abiertas[0].id);
+    setCajaId(abiertas.find((c) => c.id === guardada)?.id ?? abiertas[0].id);
   }, [abiertas, cajaId, cuenta.tipo]);
 
   const objetivo = modo === 'todo' ? cuenta.saldo : modo === 'puesto' ? (puestos.find((p) => p.asiento === puesto)?.saldo ?? 0) : Math.min(cuenta.saldo, otro ?? 0);

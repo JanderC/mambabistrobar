@@ -46,7 +46,7 @@ function Vender() {
   const moneda: Moneda = ajustes.datos?.moneda_principal ?? 'COP';
   const buscador = useRef<HTMLInputElement>(null);
   const cajas = useDatos<CajaEstado[]>('/caja', 15_000);
-  const cajaAbierta = cajas.datos?.find((c) => c.sesion && /barra/i.test(c.nombre)) ?? cajas.datos?.find((c) => c.sesion);
+  const cajaAbierta = cajas.datos?.find((c) => c.sesion);
   const [abrirCaja, setAbrirCaja] = useState(false);
 
   const [q, setQ] = useState('');

@@ -29,7 +29,7 @@ export function AbrirCajaRapida({ onAbierta }: { onAbierta: () => void }) {
   // La de barra si existe; si no, la primera cerrada. El fondo arranca con lo que dejó el último cierre.
   useEffect(() => {
     if (cajaId || !cerradas.length) return;
-    const c = cerradas.find((x) => /barra/i.test(x.nombre)) ?? cerradas[0];
+    const c = cerradas.find((x) => /principal/i.test(x.nombre)) ?? cerradas[0];
     setCajaId(c.id);
   }, [cerradas, cajaId]);
   const caja = cerradas.find((c) => c.id === cajaId);
@@ -44,18 +44,18 @@ export function AbrirCajaRapida({ onAbierta }: { onAbierta: () => void }) {
   if (!(cajas.datos ?? []).length)
     return (
       <div className="space-y-4">
-        <p className="text-sm text-smoke">Todavía no hay ninguna caja creada en el sistema. Crea la caja de la barra y la abres con tu monto.</p>
+        <p className="text-sm text-smoke">Todavía no hay ninguna caja creada en el sistema. Crea la caja y la abres con tu monto.</p>
         <Boton variante="oro" tam="lg" className="w-full" cargando={ocupado} onClick={async () => {
           setOcupado(true);
           try {
-            await adm('/cajas', { method: 'POST', body: { nombre: 'Caja Barra', descripcion: 'Los clientes de barra van cancelando aquí' } });
+            await adm('/cajas', { method: 'POST', body: { nombre: 'Caja Principal', descripcion: 'La caja del local: aquí entra todo lo que se cobra' } });
             cajas.recargar();
           } catch (e) {
             avisos.error(e);
           } finally {
             setOcupado(false);
           }
-        }}>Crear la «Caja Barra»</Boton>
+        }}>Crear la «Caja Principal»</Boton>
       </div>
     );
   // Se abrió desde otra pantalla mientras esta mostraba «cerrada»: se avisa y se actualiza todo
