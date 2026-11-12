@@ -8,6 +8,7 @@ import { MONEDAS, type Moneda, type Tasa, convertir, dinero, redondear, toleranc
 import { Boton, Cargando, Input, InputNum, Insignia, Interruptor, Modal, Select, useAvisos, useDatos } from '../ui';
 import type { Cuenta, MetodoPago } from './tipos';
 
+const NOMBRE_MONEDA: Record<Moneda, string> = { COP: 'Pesos', USD: 'Dólares', VES: 'Bolívares' };
 type Linea = { clave: number; metodo: MetodoPago; moneda: Moneda; monto: number | null; referencia: string };
 type CajaAbierta = { id: number; nombre: string; sesion: { id: number; usuario: string } | null };
 type Resultado = { saldado: boolean; restante: number; vuelto: { monto: number; moneda: Moneda } | null; cuenta: Cuenta };
@@ -54,8 +55,8 @@ export function Cobro({ cuenta, tasa, onCerrar, onPagado, cerrarAlPagar }: { cue
   const cubreTodo = objetivo >= cuenta.saldo - tolerancia(moneda) && completo;
   const ultimaEfectivo = lineas.at(-1)?.metodo.es_efectivo ?? false;
 
-  const agregar = (m: MetodoPago) => {
-    const mon = m.monedas.includes(moneda) ? moneda : m.monedas[0];
+  const agregar = (m: MetodoPago, enMoneda?: Moneda) => {
+    const mon = enMoneda ?? (m.monedas.includes(moneda) ? moneda : m.monedas[0]);
     const pendiente = Math.max(0, falta);
     setLineas([...lineas, { clave: Date.now(), metodo: m, moneda: mon, monto: pendiente > 0 ? redondear(convertir(pendiente, moneda, mon, tasa), mon) : null, referencia: '' }]);
   };
@@ -175,14 +176,29 @@ export function Cobro({ cuenta, tasa, onCerrar, onPagado, cerrarAlPagar }: { cue
         {/* Métodos */}
         <section>
           <h3 className="mb-2 text-xs tracking-wider text-gold uppercase">¿Con qué paga? <span className="text-smoke normal-case">· puedes combinar varios</span></h3>
+          {/* Un botón por método y moneda: «Efectivo · dólares» se toca directo, sin cambiar nada después */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {metodos.datos?.map((m) => (
-              <button key={m.id} onClick={() => agregar(m)} className="flex items-center gap-2 rounded-2xl border border-gold/15 p-3 text-left text-sm transition hover:border-gold hover:bg-gold/10">
+            {metodos.datos?.flatMap((m) => m.monedas.map((mon) => (
+              <button key={`${m.id}-${mon}`} onClick={() => agregar(m, mon)} className="flex items-center gap-2 rounded-2xl border border-gold/15 p-3 text-left text-sm transition hover:border-gold hover:bg-gold/10">
                 {m.es_efectivo ? <Banknote size={18} className="shrink-0 text-venom" /> : <CreditCard size={18} className="shrink-0 text-gold" />}
-                <span className="min-w-0"><span className="block truncate font-medium">{m.nombre}</span><span className="block text-[10px] text-smoke">{m.monedas.join(' · ')}</span></span>
+                <span className="min-w-0">
+                  <span className="block truncate font-medium">{m.nombre}</span>
+                  <span className={`block text-[11px] font-semibold ${mon === 'USD' ? 'text-venom' : mon === 'VES' ? 'text-sky-300' : 'text-gold-light'}`}>{NOMBRE_MONEDA[mon]}</span>
+                </span>
               </button>
-            ))}
+            )))}
           </div>
+          {/* Cuánto falta en cada moneda: para decirle al cliente «son 20 dólares» o «son 800 bolívares» */}
+          {!completo && (
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {MONEDAS.map((m) => (
+                <div key={m} className={`rounded-xl border px-3 py-2 ${m === moneda ? 'border-gold/40 bg-gold/5' : 'border-white/10'}`}>
+                  <span className="block text-[10px] tracking-wider text-smoke uppercase">{lineas.length ? 'Falta en' : 'Son'} {NOMBRE_MONEDA[m].toLowerCase()}</span>
+                  <b className="font-display text-lg">{dinero(redondear(convertir(Math.max(0, falta), moneda, m, tasa), m), m)}</b>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Líneas de pago */}
@@ -191,8 +207,8 @@ export function Cobro({ cuenta, tasa, onCerrar, onPagado, cerrarAlPagar }: { cue
             {lineas.map((l) => (
               <div key={l.clave} className="grid grid-cols-[1fr_auto] items-center gap-2 rounded-2xl border border-gold/15 bg-void/40 p-3 sm:grid-cols-[1.1fr_90px_1fr_1fr_auto]">
                 <p className="text-sm font-medium">{l.metodo.nombre}</p>
-                <Select value={l.moneda} onChange={(e) => setL(l.clave, { moneda: e.target.value as Moneda })} className="col-start-1 sm:col-start-auto">
-                  {l.metodo.monedas.map((m) => <option key={m}>{m}</option>)}
+                <Select value={l.moneda} onChange={(e) => { const m = e.target.value as Moneda; setL(l.clave, { moneda: m, monto: l.monto == null ? null : redondear(convertir(l.monto, l.moneda, m, tasa), m) }); }} className="col-start-1 sm:col-start-auto">
+                  {l.metodo.monedas.map((m) => <option key={m} value={m}>{NOMBRE_MONEDA[m]}</option>)}
                 </Select>
                 <div>
                   <InputNum autoFocus valor={l.monto} onCambio={(v) => setL(l.clave, { monto: v })} placeholder="Monto" />

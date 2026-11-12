@@ -1,12 +1,13 @@
 'use client';
 
-import { Beer, ChefHat, Lock, Minus, Plus, Receipt, Search, Trash2, Unlock, X, Zap } from 'lucide-react';
+import { Beer, ChefHat, Lock, Minus, PenLine, Plus, Receipt, Search, Trash2, Unlock, Wallet, X, Zap } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { AbrirCajaRapida, type CajaEstado } from '@/components/admin/pos/AbrirCaja';
 import { BandejaQR } from '@/components/admin/pos/BandejaQR';
 import { Cobro } from '@/components/admin/pos/Cobro';
+import { type CuentaAbierta, PorCobrar, lugarCuenta } from '@/components/admin/pos/PorCobrar';
 import { Configurador } from '@/components/admin/pos/Configurador';
 import { type Borrador, type Catalogo, type CategoriaCat, type Cuenta, type ProductoCat, type VarianteCat } from '@/components/admin/pos/tipos';
 import { Boton, Cargando, ErrorCaja, Input, Modal, useAvisos, useDatos } from '@/components/admin/ui';
@@ -31,7 +32,12 @@ function leer(q: string): { cantidad: number; texto: string } {
  * Venta rápida para la barra: escribes lo que piden («tobo», «2 agua»), Enter lo suma al ticket, y F2 cobra.
  * Crea una cuenta de barra, la cobra y la cierra en un solo paso. Lo de cocina sale con su comanda.
  */
+// useSearchParams necesita un Suspense para que Next pueda prerenderizar la página
 export default function VenderPage() {
+  return <Suspense fallback={<Cargando />}><Vender /></Suspense>;
+}
+
+function Vender() {
   const router = useRouter();
   const avisos = useAvisos();
   const catalogo = useDatos<Catalogo>('/pos/catalogo', 60_000);
@@ -51,6 +57,28 @@ export default function VenderPage() {
   const [ocupado, setOcupado] = useState(false);
   const [cobrar, setCobrar] = useState<Cuenta | null>(null);
   const [sinCobrar, setSinCobrar] = useState<Cuenta | null>(null);
+  const [vista, setVista] = useState<'vender' | 'cobrar'>('vender');
+  const [pidieronCuenta, setPidieronCuenta] = useState(0);
+  // «Anotar»: lo del ticket se agrega a una cuenta que ya existe (una mesa, un cliente de barra)
+  const [destino, setDestino] = useState<CuentaAbierta | null>(null);
+  const [editando, setEditando] = useState<Borrador | null>(null);
+
+  /** Abre el cobro de una cuenta existente (desde Por cobrar o desde la notificación) */
+  const cobrarCuenta = async (id: number) => {
+    try {
+      setCobrar(await adm<Cuenta>(`/cuentas/${id}`));
+    } catch (e) {
+      avisos.error(e);
+    }
+  };
+  // /admin/vender?cobrar=123 → viene de la notificación «la mesa pasó a caja»
+  const params = useSearchParams();
+  useEffect(() => {
+    const id = Number(params.get('cobrar'));
+    if (!id) return;
+    void cobrarCuenta(id);
+    router.replace('/admin/vender');
+  }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const enfocar = () => setTimeout(() => buscador.current?.focus(), 30);
 
@@ -126,13 +154,13 @@ export default function VenderPage() {
     setTicket((t) => t.flatMap((x) => (x.clave !== clave ? [x] : x.cantidad + d <= 0 ? [] : [{ ...x, cantidad: x.cantidad + d }])));
 
   /** Crea la cuenta de barra con lo del ticket. Lo de barra entra directo; lo de cocina sale con comanda. */
-  const crearCuenta = async () => {
-    const c = await adm<Cuenta>('/cuentas', { method: 'POST', body: { tipo: 'barra', personas: 1, nombre_cliente: nombre.trim() || null, moneda } });
+  const crearCuenta = async (en?: CuentaAbierta | null) => {
+    const c = en ? { id: en.id } as Cuenta : await adm<Cuenta>('/cuentas', { method: 'POST', body: { tipo: 'barra', personas: 1, nombre_cliente: nombre.trim() || null, moneda } });
     const cuerpo = (l: Borrador) => ({ variante_id: l.variante.id, cantidad: l.cantidad, asiento: null, notas: l.notas || null, sin: l.sin, adicionales: l.adicionales, seleccion: l.seleccion });
     const estacion = new Map((catalogo.datos?.categorias ?? []).flatMap((x) => x.productos.map((p) => [p.id, x.estacion] as const)));
     const cocina = ticket.filter((l) => estacion.get(l.producto.id) === 'cocina');
     const barra = ticket.filter((l) => estacion.get(l.producto.id) !== 'cocina');
-    let cuenta = c;
+    let cuenta = c as Cuenta;
     if (barra.length) cuenta = await adm<Cuenta>(`/cuentas/${c.id}/items`, { method: 'POST', body: { directo: true, items: barra.map(cuerpo) } });
     if (cocina.length) cuenta = await adm<Cuenta>(`/cuentas/${c.id}/items`, { method: 'POST', body: { directo: false, items: cocina.map(cuerpo) } });
     setTicket([]);
@@ -149,6 +177,23 @@ export default function VenderPage() {
       const c = await crearCuenta();
       setSinCobrar(c);
       setCobrar(c);
+    } catch (e) {
+      avisos.error(e);
+    } finally {
+      setOcupado(false);
+    }
+  };
+
+  /** Agrega el ticket a la cuenta elegida con «Anotar»; si `yCobrar`, abre el cobro de esa cuenta */
+  const anotar = async (yCobrar = false) => {
+    if (!destino || !ticket.length || ocupado) return;
+    setOcupado(true);
+    try {
+      const c = await crearCuenta(destino);
+      avisos.ok(`Anotado en ${lugarCuenta(destino)}${destino.nombre_cliente ? ` · ${destino.nombre_cliente}` : ''}`);
+      setDestino(null);
+      if (yCobrar) setCobrar(c);
+      enfocar();
     } catch (e) {
       avisos.error(e);
     } finally {
@@ -179,7 +224,7 @@ export default function VenderPage() {
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (config || cobrar) return;
-      if (e.key === 'F2' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); void irACobrar(); }
+      if (e.key === 'F2' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); void (destino ? anotar(true) : irACobrar()); }
     };
     addEventListener('keydown', k);
     return () => removeEventListener('keydown', k);
@@ -204,6 +249,24 @@ export default function VenderPage() {
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
         {/* ------------------------------------------------------------ Carta */}
         <section className="min-w-0">
+          {/* Vender lo que piden en la barra · cobrar o anotar en las cuentas abiertas (mesas y barra) */}
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            <button onClick={() => { setVista('vender'); enfocar(); }}
+              className={`flex h-12 items-center justify-center gap-2 rounded-2xl text-base font-semibold transition ${vista === 'vender' ? 'bg-gold text-void' : 'border border-gold/25 text-smoke hover:text-ivory'}`}>
+              <Zap size={18} /> Vender
+            </button>
+            <button onClick={() => setVista('cobrar')}
+              className={`relative flex h-12 items-center justify-center gap-2 rounded-2xl text-base font-semibold transition ${vista === 'cobrar' ? 'bg-gold text-void' : 'border border-gold/25 text-smoke hover:text-ivory'}`}>
+              <Wallet size={18} /> Mesas y por cobrar
+              {pidieronCuenta > 0 && <span className="absolute -top-2 -right-1 grid h-6 min-w-6 place-items-center rounded-full bg-sky-400 px-1.5 text-xs font-bold text-void">{pidieronCuenta}</span>}
+            </button>
+          </div>
+
+          <div className={vista === 'cobrar' ? '' : 'hidden'}>
+            <PorCobrar onCobrar={cobrarCuenta} onAnotar={(c) => { setDestino(c); setVista('vender'); enfocar(); }} anotando={destino?.id ?? null} onCantidad={setPidieronCuenta} />
+          </div>
+
+          <div className={vista === 'vender' ? '' : 'hidden'}>
           <div className="sticky top-14 z-20 -mx-3 bg-[#020a07]/95 px-3 pt-1 pb-3 backdrop-blur-xl sm:mx-0 sm:px-0">
             <label className="relative block">
               <Search size={22} className="absolute top-1/2 left-4 -translate-y-1/2 text-gold" />
@@ -259,6 +322,7 @@ export default function VenderPage() {
               ))}
             </div>
           )}
+          </div>
         </section>
 
         {/* ------------------------------------------------------------ Ticket */}
@@ -307,7 +371,10 @@ export default function VenderPage() {
                 <div key={l.clave} className="flex items-center gap-2 border-b border-white/5 py-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{l.producto.nombre}{l.producto.variantes.length > 1 && <span className="text-gold/80"> · {l.variante.presentacion}</span>}</p>
-                    {l.detalle.length > 0 && <p className="truncate text-[11px] text-smoke">{l.detalle.join(' · ')}</p>}
+                    {(l.detalle.length > 0 || l.notas) && <p className="truncate text-[11px] text-gold/90">{[...l.detalle, l.notas].filter(Boolean).join(' · ')}</p>}
+                    <button onClick={() => setEditando(l)} className="flex items-center gap-1 text-[11px] text-smoke hover:text-gold-light">
+                      <PenLine size={11} /> {l.variante.removibles.length ? 'Quitar ingredientes / nota' : 'Agregar nota'}
+                    </button>
                     <p className="text-xs text-smoke">{dinero(l.unitario * l.cantidad, moneda)}</p>
                   </div>
                   <div className="flex items-center gap-1">
@@ -320,15 +387,34 @@ export default function VenderPage() {
             </div>
 
             <div className="space-y-2 border-t border-gold/10 p-3">
+              {destino ? (
+                <div className="flex items-center gap-2 rounded-2xl border-2 border-gold bg-gold/10 px-3 py-2">
+                  <PenLine size={16} className="shrink-0 text-gold" />
+                  <p className="min-w-0 flex-1 text-sm">Anotando en <b className="text-gold-light">{lugarCuenta(destino)}{destino.nombre_cliente ? ` · ${destino.nombre_cliente}` : ''}</b></p>
+                  <button onClick={() => setDestino(null)} className="text-smoke hover:text-ivory" aria-label="Dejar de anotar en esa cuenta"><X size={16} /></button>
+                </div>
+              ) : (
               <Input id="venta-nombre" value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="A nombre de (opcional)" />
+              )}
               <div className="flex items-baseline justify-between px-1">
                 <span className="text-sm text-smoke">{unidades ? `${unidades} ${unidades === 1 ? 'producto' : 'productos'}` : 'Total'}</span>
                 <span className="font-display text-4xl font-light text-gold-light">{dinero(total, moneda)}</span>
               </div>
+              {destino ? (
+                <>
+                  <Boton variante="oro" tam="lg" className="!h-16 w-full !text-lg" disabled={!ticket.length} cargando={ocupado} onClick={() => anotar(false)}>
+                    <PenLine size={20} /> Anotar en la cuenta
+                  </Boton>
+                  <Boton variante="borde" className="w-full" disabled={!ticket.length || ocupado} onClick={() => anotar(true)}>
+                    <Wallet size={15} /> Anotar y cobrar <span className="ml-1 rounded-md bg-white/10 px-1.5 text-xs">F2</span>
+                  </Boton>
+                </>
+              ) : (
               <Boton variante="oro" tam="lg" className="!h-16 w-full !text-lg" disabled={!ticket.length} cargando={ocupado} onClick={irACobrar}>
                 <Zap size={20} /> Cobrar <span className="ml-1 rounded-md bg-void/20 px-1.5 text-xs">F2</span>
               </Boton>
-              <div className="grid grid-cols-[1fr_auto] gap-2">
+              )}
+              <div className={`grid grid-cols-[1fr_auto] gap-2 ${destino ? 'hidden' : ''}`}>
                 <Boton variante="borde" disabled={!ticket.length || ocupado} onClick={dejarAbierta} title="Para el que va a seguir pidiendo">
                   <Beer size={15} /> Dejar en cuenta abierta
                 </Boton>
@@ -348,6 +434,17 @@ export default function VenderPage() {
         />
       )}
 
+      {editando && (
+        <Configurador
+          key={`e-${editando.clave}`}
+          producto={editando.producto}
+          categoria={catalogo.datos.categorias.find((c) => c.productos.some((p) => p.id === editando.producto.id))!}
+          moneda={moneda} asientos={0} asientoInicial={null}
+          onCerrar={() => { setEditando(null); enfocar(); }}
+          onAgregar={(b) => { setTicket((t) => t.map((x) => (x.clave === editando.clave ? { ...b, cantidad: b.cantidad === 1 ? editando.cantidad : b.cantidad } : x))); setEditando(null); enfocar(); }}
+        />
+      )}
+
       {abrirCaja && (
         <Modal titulo="Abrir caja" subtitulo="Confirma con cuánto efectivo arrancas y listo." onCerrar={() => { setAbrirCaja(false); enfocar(); }} ancho="max-w-md">
           <AbrirCajaRapida onAbierta={() => { setAbrirCaja(false); cajas.recargar(); enfocar(); }} />
@@ -356,8 +453,8 @@ export default function VenderPage() {
 
       {cobrar && (
         <Cobro
-          cuenta={cobrar} tasa={tasa} cerrarAlPagar
-          onPagado={(c) => { if (c.saldo <= 0) setSinCobrar(null); else setSinCobrar(c); }}
+          cuenta={cobrar} tasa={tasa} cerrarAlPagar={sinCobrar?.id === cobrar.id ? true : undefined}
+          onPagado={(c) => { if (sinCobrar?.id === c.id) setSinCobrar(c.saldo <= 0 ? null : c); }}
           onCerrar={() => { setCobrar(null); cajas.recargar(); enfocar(); }}
         />
       )}

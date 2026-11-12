@@ -5,44 +5,55 @@ import {
   type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes,
   createContext, useCallback, useContext, useEffect, useRef, useState,
 } from 'react';
+import { useRouter } from 'next/navigation';
 import { adm, mensajeError } from '@/lib/admin/api';
 
 // ====================================================================== Avisos (toasts)
-type Aviso = { id: number; tipo: 'ok' | 'error' | 'info'; texto: string };
-const AvisosCtx = createContext<{ ok: (t: string) => void; error: (e: unknown) => void; info: (t: string) => void }>({
+type Aviso = { id: number; tipo: 'ok' | 'error' | 'info'; texto: string; ir?: string };
+const AvisosCtx = createContext<{ ok: (t: string) => void; error: (e: unknown) => void; info: (t: string, ir?: string) => void }>({
   ok: () => {}, error: () => {}, info: () => {},
 });
 export const useAvisos = () => useContext(AvisosCtx);
 
 export function AvisosProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [avisos, setAvisos] = useState<Aviso[]>([]);
-  const push = useCallback((tipo: Aviso['tipo'], texto: string) => {
+  const quitar = useCallback((id: number) => setAvisos((a) => a.filter((x) => x.id !== id)), []);
+  const push = useCallback((tipo: Aviso['tipo'], texto: string, ir?: string) => {
     const id = Date.now() + Math.random();
-    setAvisos((a) => [...a.slice(-3), { id, tipo, texto }]);
-    setTimeout(() => setAvisos((a) => a.filter((x) => x.id !== id)), tipo === 'error' ? 6500 : 3200);
+    setAvisos((a) => [...a.slice(-3), { id, tipo, texto, ir }]);
+    // Los que llevan a algún lado (pedido, cobro) se quedan más para alcanzar a tocarlos
+    setTimeout(() => setAvisos((a) => a.filter((x) => x.id !== id)), ir ? 15000 : tipo === 'error' ? 6500 : 3200);
   }, []);
   const api = useRef({
     ok: (t: string) => push('ok', t),
-    info: (t: string) => push('info', t),
+    info: (t: string, ir?: string) => push('info', t, ir),
     error: (e: unknown) => push('error', typeof e === 'string' ? e : mensajeError(e)),
   }).current;
   return (
     <AvisosCtx.Provider value={api}>
       {children}
       <div className="pointer-events-none fixed top-16 right-4 z-[100] flex w-[min(92vw,380px)] flex-col gap-2">
-        {avisos.map((a) => (
-          <div
-            key={a.id}
-            role="status"
-            className={`pointer-events-auto rounded-xl border px-4 py-3 text-sm shadow-2xl backdrop-blur ${
-              a.tipo === 'error' ? 'border-red-400/40 bg-red-950/90 text-red-100'
-              : a.tipo === 'ok' ? 'border-venom/40 bg-emerald/90 text-ivory'
-              : 'border-gold/40 bg-abyss/95 text-ivory'
-            }`}
-          >
-            {a.texto}
-          </div>
-        ))}
+        {avisos.map((a) => {
+          const cls = `pointer-events-auto relative w-full rounded-xl border px-4 py-3 pr-9 text-left text-sm shadow-2xl backdrop-blur ${
+            a.tipo === 'error' ? 'border-red-400/40 bg-red-950/90 text-red-100'
+            : a.tipo === 'ok' ? 'border-venom/40 bg-emerald/90 text-ivory'
+            : 'border-gold/40 bg-abyss/95 text-ivory'
+          }`;
+          const cerrar = (
+            <span role="button" tabIndex={0} aria-label="Cerrar aviso" onClick={(e) => { e.stopPropagation(); quitar(a.id); }}
+              className="absolute top-2.5 right-2.5 text-smoke hover:text-ivory"><X size={14} /></span>
+          );
+          return a.ir ? (
+            <button key={a.id} role="status" className={`${cls} transition hover:border-gold`} onClick={() => { quitar(a.id); router.push(a.ir!); }}>
+              {a.texto}
+              <span className="mt-1.5 block text-xs font-semibold text-gold-light">Tocar para abrir →</span>
+              {cerrar}
+            </button>
+          ) : (
+            <div key={a.id} role="status" className={cls}>{a.texto}{cerrar}</div>
+          );
+        })}
       </div>
     </AvisosCtx.Provider>
   );

@@ -411,6 +411,12 @@ export default function CuentaPage() {
                   ? <Boton variante="verde" tam="lg" className="flex-1" cargando={ocupado} onClick={() => accion(() => adm(`/cuentas/${c.id}/cerrar`, { method: 'POST' }), 'Cuenta cerrada')}><Check size={18} /> Cerrar cuenta</Boton>
                   : <Boton variante="oro" tam="lg" className="flex-1" disabled={c.total <= 0 || borrador.length > 0} onClick={() => setCobrando(true)} title={borrador.length ? 'Envía primero lo pendiente' : ''}><Wallet size={18} /> Cobrar</Boton>
               )}
+              {/* El mesonero cobra en la mesa (entra a la caja abierta) o la pasa a caja */}
+              {abierta && !puedeCobrar && es('mesonero') && c.saldo > 0 && (
+                <Boton variante="verde" tam="lg" className="flex-1" disabled={borrador.length > 0} onClick={() => setCobrando(true)} title={borrador.length ? 'Envía primero lo pendiente' : ''}>
+                  <Wallet size={18} /> Cobrar aquí
+                </Boton>
+              )}
               {abierta && !puedeCobrar && (c.cobro_solicitado_en ? (
                 <Boton tam="lg" className="flex-1 !border-sky-400/50 !text-sky-200" cargando={ocupado} onClick={() => accion(() => adm(`/cuentas/${c.id}/solicitar-cobro`, { method: 'DELETE' }), 'Cuenta retirada de caja')}>
                   <Wallet size={18} /> En caja · retirar

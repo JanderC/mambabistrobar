@@ -2,6 +2,7 @@
 
 import { Unlock } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { useSesion } from '@/components/admin/Sesion';
 import { Boton, Campo, Cargando, InputNum, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
 import { type Moneda, MONEDAS, dinero } from '@/lib/admin/moneda';
@@ -17,6 +18,8 @@ export type CajaEstado = {
  */
 export function AbrirCajaRapida({ onAbierta }: { onAbierta: () => void }) {
   const avisos = useAvisos();
+  const { es } = useSesion();
+  const puedeAbrir = es('gerente', 'cajero', 'barra');
   const cajas = useDatos<CajaEstado[]>('/caja');
   const cerradas = (cajas.datos ?? []).filter((c) => !c.sesion);
   const [cajaId, setCajaId] = useState<number | null>(null);
@@ -37,6 +40,7 @@ export function AbrirCajaRapida({ onAbierta }: { onAbierta: () => void }) {
     setOtras(!!(caja.arrastre?.usd || caja.arrastre?.ves));
   }, [caja?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (!puedeAbrir) return <p className="text-sm text-smoke">La caja está cerrada. Pídele al administrador o a la barra que la abra, o usa <b className="text-ivory">Pasar a caja</b> para que la cobren allá.</p>;
   if (cajas.cargando) return <Cargando />;
   if (!cerradas.length) return <p className="text-sm text-smoke">Todas las cajas ya están abiertas.</p>;
 

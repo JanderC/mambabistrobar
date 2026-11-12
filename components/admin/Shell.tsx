@@ -326,23 +326,29 @@ function EnVivo() {
   const conectado = useVivoConectado();
   const avisos = useAvisos();
   const cobra = es('gerente', 'cajero', 'barra');
+  const ruta = usePathname();
 
   useVivo((e) => {
+    // Pedido de un mesonero que lleva cosas de barra: a quien atiende la barra, con acceso directo a las comandas
+    if (e.tipo === 'pedido' && !e.directo && cobra && e.estaciones.includes('barra') && !ruta.startsWith('/admin/comandas')) {
+      sonar('pedido');
+      avisos.info(`🍹 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''}: pedido nuevo para la barra (${e.items} ${e.items === 1 ? 'producto' : 'productos'} · ${e.mesonero})`, '/admin/comandas');
+    }
     if (e.tipo === 'comanda' && e.estado === 'listo') {
       const mios = e.items.filter((i) => i.mesonero_id === usuario?.id);
       if (!mios.length) return;
       sonar('listo');
-      avisos.info(`🔔 ${mios[0].lugar}${mios[0].cliente ? ` · ${mios[0].cliente}` : ''}: ${mios.map((i) => `${i.cantidad}× ${i.nombre}`).join(', ')} listo para llevar`);
+      avisos.info(`🔔 ${mios[0].lugar}${mios[0].cliente ? ` · ${mios[0].cliente}` : ''}: ${mios.map((i) => `${i.cantidad}× ${i.nombre}`).join(', ')} listo para llevar`, `/admin/cuenta/${mios[0].cuenta_id}`);
     }
     if (e.tipo === 'cobro' && e.accion === 'solicitado' && cobra) {
       sonar('cobro');
-      avisos.info(`💳 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''} pasó a caja (${e.mesonero ?? 'mesonero'})`);
+      avisos.info(`💳 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''} pasó a caja (${e.mesonero ?? 'mesonero'})`, `/admin/vender?cobrar=${e.cuenta_id}`);
     }
     if (e.tipo === 'cobro' && e.accion === 'cobrado' && e.mesonero_id === usuario?.id && !cobra) avisos.ok(`✓ ${e.lugar}: cuenta cobrada en caja`);
     // Pedido de un cliente desde el QR de su mesa: lo atiende la barra (o caja / gerencia)
     if (e.tipo === 'pedido_qr' && e.accion === 'nuevo' && cobra) {
       sonar('qr');
-      avisos.info(`📱 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''} pidió desde el QR (${e.items} ${e.items === 1 ? 'producto' : 'productos'}). Confírmalo en Barra o Pedidos QR.`);
+      avisos.info(`📱 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''} pidió desde el QR (${e.items} ${e.items === 1 ? 'producto' : 'productos'}). Confírmalo aquí.`, '/admin/vender');
     }
   });
 
