@@ -99,7 +99,7 @@ export default function InicioPage() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {t.ventas ? (
           <>
-            <Dato etiqueta="Cobrado esta noche" valor={dinero(t.ventas.total, t.moneda)} sub={`≈ ${dinero(t.ventas.usd, 'USD')} · ${t.ventas.cuentas} cuentas`} acento />
+            <Link href="/admin/caja" className="block transition hover:brightness-110" title="Ver los movimientos del día"><Dato etiqueta="Cobrado esta noche · ver movimientos →" valor={dinero(t.ventas.total, t.moneda)} sub={`≈ ${dinero(t.ventas.usd, 'USD')} · ${t.ventas.cuentas} cuentas`} acento /></Link>
             <Dato etiqueta="Por cobrar (cuentas abiertas)" valor={dinero(t.ventas.por_cobrar, t.moneda)} sub={`${t.cuentas_abiertas} cuentas abiertas`} />
             <Dato etiqueta="Ticket promedio" valor={dinero(t.ventas.ticket_promedio, t.moneda)} />
           </>

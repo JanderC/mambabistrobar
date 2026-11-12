@@ -113,6 +113,7 @@ export function PedirQR({ token }: { token: string }) {
   const unidades = carrito.reduce((s, b) => s + b.cantidad, 0);
   const total = carrito.reduce((s, b) => s + b.unitario * b.cantidad, 0);
 
+  const [confirmar, setConfirmar] = useState(false);
   const enviar = async () => {
     setEnviando(true);
     setErrorEnvio(null);
@@ -130,6 +131,7 @@ export function PedirQR({ token }: { token: string }) {
       setCarrito([]);
       setNota('');
       setVerCarrito(false);
+      setConfirmar(false);
       setRecienEnviado(p.id);
     } catch (e) {
       setErrorEnvio((e as Error).message);
@@ -274,13 +276,26 @@ export function PedirQR({ token }: { token: string }) {
 
       {/* ------------------------------------------------------------ Mi pedido */}
       {verCarrito && (
-        <Modal titulo="Tu pedido" subtitulo={`${carta.mesa.lugar}${carta.mesa.zona ? ` · ${carta.mesa.zona}` : ''}`} onCerrar={() => setVerCarrito(false)} ancho="max-w-lg"
+        <Modal titulo="Tu pedido" subtitulo={`${carta.mesa.lugar}${carta.mesa.zona ? ` · ${carta.mesa.zona}` : ''}`} onCerrar={() => { setVerCarrito(false); setConfirmar(false); }} ancho="max-w-lg"
           pie={
             <div className="w-full space-y-2">
               {errorEnvio && <p className="rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-200">{errorEnvio}</p>}
-              <Boton variante="oro" tam="lg" className="w-full !h-14 !text-base" cargando={enviando} disabled={!carrito.length} onClick={enviar}>
-                <Send size={19} /> Enviar a la barra · {dinero(total, moneda)}
-              </Boton>
+              {/* Un toque más para corroborar: «¿Está todo bien?» antes de mandarlo a la barra */}
+              {confirmar ? (
+                <>
+                  <p className="text-center text-sm text-gold-light">¿Está todo bien? Revisa tu pedido arriba.</p>
+                  <div className="grid grid-cols-[auto_1fr] gap-2">
+                    <Boton tam="lg" className="!h-14" onClick={() => setConfirmar(false)}>Corregir</Boton>
+                    <Boton variante="oro" tam="lg" className="!h-14 !text-base" cargando={enviando} onClick={enviar}>
+                      <Send size={19} /> Sí, enviar · {dinero(total, moneda)}
+                    </Boton>
+                  </div>
+                </>
+              ) : (
+                <Boton variante="oro" tam="lg" className="w-full !h-14 !text-base" disabled={!carrito.length} onClick={() => setConfirmar(true)}>
+                  <Send size={19} /> Enviar a la barra · {dinero(total, moneda)}
+                </Boton>
+              )}
             </div>
           }>
           {!carrito.length ? <p className="py-8 text-center text-smoke">Tu pedido está vacío.</p> : (

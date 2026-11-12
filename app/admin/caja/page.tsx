@@ -4,6 +4,7 @@ import { ArrowDownLeft, ArrowUpRight, Lock, Unlock } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Area, Boton, Campo, Cargando, Encabezado, ErrorCaja, Input, InputNum, Insignia, Modal, Pestanas, Select, Tabla, Tarjeta, Vacio, useAvisos, useDatos } from '@/components/admin/ui';
+import { MovimientosDia } from '@/components/admin/caja/MovimientosDia';
 import { ColaCobro } from '@/components/admin/pos/ColaCobro';
 import { adm } from '@/lib/admin/api';
 import { MONEDAS, type Moneda, type PorMoneda, dinero, fechaHora, soloHora } from '@/lib/admin/moneda';
@@ -23,7 +24,7 @@ const cero = (): Record<Moneda, number | null> => ({ COP: null, USD: null, VES: 
 export default function CajaPage() {
   const cajas = useDatos<Caja[]>('/caja', 30_000);
   const [cajaId, setCajaId] = useState<number | null>(null);
-  const [vista, setVista] = useState<'cola' | 'turno' | 'historial'>('cola');
+  const [vista, setVista] = useState<'dia' | 'cola' | 'turno' | 'historial'>('dia');
   const [enCola, setEnCola] = useState<number | undefined>(undefined);
   const caja = cajas.datos?.find((c) => c.id === cajaId) ?? cajas.datos?.[0];
 
@@ -36,9 +37,11 @@ export default function CajaPage() {
 
   return (
     <div className="max-w-6xl">
-      <Encabezado titulo="Caja" descripcion="Las cuentas que pasan los mesoneros llegan a «Por cobrar». Cada punto de cobro lleva su turno con fondo, ingresos, egresos y conteo al cerrar.">
-        <Pestanas valor={vista} onCambio={setVista} opciones={[{ valor: 'cola', etiqueta: 'Por cobrar', cuenta: enCola }, { valor: 'turno', etiqueta: 'Turno actual' }, { valor: 'historial', etiqueta: 'Cierres anteriores' }]} />
+      <Encabezado titulo="Caja" descripcion="Cómo va el día: lo vendido, lo cobrado en cada moneda y cada movimiento. El turno lleva su fondo, ingresos, egresos y el conteo al cerrar.">
+        <Pestanas valor={vista} onCambio={setVista} opciones={[{ valor: 'dia', etiqueta: 'Movimientos del día' }, { valor: 'cola', etiqueta: 'Por cobrar', cuenta: enCola }, { valor: 'turno', etiqueta: 'Turno actual' }, { valor: 'historial', etiqueta: 'Cierres anteriores' }]} />
       </Encabezado>
+
+      {vista === 'dia' && <MovimientosDia />}
 
       {vista === 'cola' && (
         <>

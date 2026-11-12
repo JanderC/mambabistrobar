@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { useSesion } from '@/components/admin/Sesion';
 import { NombreCliente } from '@/components/admin/pos/NombreCliente';
-import { PasarACaja } from '@/components/admin/pos/PasarACaja';
+import { Cobro } from '@/components/admin/pos/Cobro';
+import type { Cuenta } from '@/components/admin/pos/tipos';
 import { Boton, Cargando, ErrorCaja, Input, Insignia, Modal, Pestanas, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
-import { type Moneda, dinero, hace } from '@/lib/admin/moneda';
+import { type Moneda, type Tasa, dinero, hace } from '@/lib/admin/moneda';
 import { useVivo } from '@/lib/admin/vivo';
 
 type Listo = { id: number; nombre: string; presentacion: string | null; cantidad: number; estacion: string; asiento: number | null };
@@ -29,7 +30,17 @@ export default function MeseroPage() {
   const [ver, setVer] = useState<'mias' | 'todas'>('mias');
   const { datos, cargando, error, recargar } = useDatos<Activa[]>(`/cuentas/activas${ver === 'todas' ? '?todas=1' : ''}`, 25_000);
   const [nueva, setNueva] = useState(false);
-  const [aCaja, setACaja] = useState<number | null>(null);
+  // «Enviar a caja»: la mesa pagó → se registra cómo pagó y el dinero entra directo a la caja (sin que la barra lo vuelva a cobrar)
+  const [aCaja, setACaja] = useState<Cuenta | null>(null);
+  const tasa = useDatos<Tasa>('/tasas/actual');
+  const avisosCaja = useAvisos();
+  const enviarACaja = async (id: number) => {
+    try {
+      setACaja(await adm<Cuenta>(`/cuentas/${id}`));
+    } catch (e) {
+      avisosCaja.error(e);
+    }
+  };
   const avisos = useAvisos();
 
   // Cualquier cosa que pase en el salón refresca la pantalla al instante
@@ -158,7 +169,7 @@ export default function MeseroPage() {
                   {enCaja ? (
                     <Boton tam="lg" variante="sutil" className="!text-sky-300" onClick={() => retirar(c.id)} title={c.cobro_nota ?? ''}><Undo2 size={17} /> En caja · {hace(c.cobro_solicitado_en!)}</Boton>
                   ) : (
-                    <Boton tam="lg" variante="oro" disabled={c.total <= 0} onClick={() => setACaja(c.id)}><Wallet size={18} /> A caja</Boton>
+                    <Boton tam="lg" variante="oro" disabled={c.total <= 0} onClick={() => enviarACaja(c.id)}><Wallet size={18} /> Enviar a caja</Boton>
                   )}
                 </div>
               </article>
@@ -168,7 +179,7 @@ export default function MeseroPage() {
       )}
 
       {nueva && <NuevaMesa onCerrar={() => setNueva(false)} />}
-      {aCaja && <PasarACaja cuentaId={aCaja} onCerrar={() => setACaja(null)} onEnviada={() => { setACaja(null); recargar(); }} />}
+      {aCaja && tasa.datos && <Cobro cuenta={aCaja} tasa={tasa.datos} cerrarAlPagar onCerrar={() => { setACaja(null); recargar(); }} onPagado={() => recargar()} />}
     </div>
   );
 }

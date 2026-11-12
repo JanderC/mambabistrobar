@@ -47,6 +47,9 @@ export default function CuentaPage() {
   const [ocupado, setOcupado] = useState(false);
   const [aCaja, setACaja] = useState(false);
   const [fiando, setFiando] = useState(false);
+  // Antes de mandar a cocina/barra: un vistazo al pedido completo para corroborarlo
+  const [revisar, setRevisar] = useState(false);
+  const alEnviar = () => (esDirecto ? enviar() : setRevisar(true));
 
   // En vivo: si barra/cocina marcan algo listo o caja cobra, esta pantalla se entera al instante
   useVivo((e) => {
@@ -278,7 +281,7 @@ export default function CuentaPage() {
                     </span>
                     <ChevronRight size={18} className="shrink-0 text-smoke" />
                   </button>
-                  <Boton variante="oro" className="h-14 shrink-0 px-5 text-base" cargando={enviando} onClick={enviar}>
+                  <Boton variante="oro" className="h-14 shrink-0 px-5 text-base" cargando={enviando} onClick={alEnviar}>
                     {esDirecto ? <Check size={19} /> : <Send size={19} />} <span className="hidden sm:inline">{textoEnviar} ·</span> {dinero(totalBorrador, moneda)}
                   </Boton>
                 </div>
@@ -337,7 +340,7 @@ export default function CuentaPage() {
                   })}
                 </ul>
                 <div className="mt-3 flex items-center gap-2">
-                  <Boton variante="oro" tam="lg" className="flex-1" cargando={enviando} onClick={enviar}>
+                  <Boton variante="oro" tam="lg" className="flex-1" cargando={enviando} onClick={alEnviar}>
                     {esDirecto ? <Check size={18} /> : <Send size={18} />} {textoEnviar} · {dinero(totalBorrador, moneda)}
                   </Boton>
                 </div>
@@ -414,21 +417,17 @@ export default function CuentaPage() {
                   ? <Boton variante="verde" tam="lg" className="flex-1" cargando={ocupado} onClick={() => accion(() => adm(`/cuentas/${c.id}/cerrar`, { method: 'POST' }), 'Cuenta cerrada')}><Check size={18} /> Cerrar cuenta</Boton>
                   : <Boton variante="oro" tam="lg" className="flex-1" disabled={c.total <= 0 || borrador.length > 0} onClick={() => setCobrando(true)} title={borrador.length ? 'Envía primero lo pendiente' : ''}><Wallet size={18} /> Cobrar</Boton>
               )}
-              {/* El mesonero cobra en la mesa (entra a la caja abierta) o la pasa a caja */}
-              {abierta && !puedeCobrar && es('mesonero') && c.saldo > 0 && (
-                <Boton variante="verde" tam="lg" className="flex-1" disabled={borrador.length > 0} onClick={() => setCobrando(true)} title={borrador.length ? 'Envía primero lo pendiente' : ''}>
-                  <Wallet size={18} /> Cobrar aquí
+              {/* «Enviar a caja»: el mesonero registra cómo pagó la mesa y el dinero entra a la caja, sin doble confirmación */}
+              {abierta && !puedeCobrar && es('mesonero') && c.saldo > 0 && !c.cobro_solicitado_en && (
+                <Boton variante="oro" tam="lg" className="flex-1" disabled={borrador.length > 0} onClick={() => setCobrando(true)} title={borrador.length ? 'Envía primero lo pendiente' : ''}>
+                  <Wallet size={18} /> Enviar a caja
                 </Boton>
               )}
-              {abierta && !puedeCobrar && (c.cobro_solicitado_en ? (
+              {abierta && !puedeCobrar && c.cobro_solicitado_en && (
                 <Boton tam="lg" className="flex-1 !border-sky-400/50 !text-sky-200" cargando={ocupado} onClick={() => accion(() => adm(`/cuentas/${c.id}/solicitar-cobro`, { method: 'DELETE' }), 'Cuenta retirada de caja')}>
                   <Wallet size={18} /> En caja · retirar
                 </Boton>
-              ) : (
-                <Boton variante="oro" tam="lg" className="flex-1" disabled={c.total <= 0 || borrador.length > 0} onClick={() => setACaja(true)} title={borrador.length ? 'Envía primero lo pendiente' : ''}>
-                  <Wallet size={18} /> Pasar a caja
-                </Boton>
-              ))}
+              )}
               {/* Venta ya cobrada: el administrador o el gerente la pueden anular (sus pagos salen de la caja) */}
               {c.estado === 'pagada' && es('gerente') && (
                 <Boton variante="peligro" tam="lg" className="flex-1" onClick={() => setAnular('cuenta')}><Ban size={18} /> Anular venta</Boton>
@@ -489,6 +488,32 @@ export default function CuentaPage() {
       {aCaja && <PasarACaja cuentaId={c.id} onCerrar={() => setACaja(false)} onEnviada={(nueva) => { cuenta.setDatos(nueva); setACaja(false); }} />}
 
       {fiando && <Fiar cuenta={c} onCerrar={() => setFiando(false)} onFiada={(nueva) => { cuenta.setDatos(nueva); setFiando(false); }} />}
+
+      {revisar && (
+        <Modal titulo="¿Está bien el pedido?" subtitulo={`${tituloCuenta(c)}${c.nombre_cliente ? ` · ${c.nombre_cliente}` : ''} · revísalo con el cliente antes de enviarlo`} onCerrar={() => setRevisar(false)} ancho="max-w-lg"
+          pie={<div className="grid w-full grid-cols-[auto_1fr] gap-2">
+            <Boton tam="lg" onClick={() => setRevisar(false)}>Corregir</Boton>
+            <Boton variante="oro" tam="lg" cargando={enviando} onClick={async () => { await enviar(); setRevisar(false); }}><Send size={18} /> Sí, enviar · {dinero(totalBorrador, moneda)}</Boton>
+          </div>}>
+          <ul className="space-y-2">
+            {borrador.map((b) => {
+              const est = estacionDe.get(b.producto.id);
+              return (
+                <li key={b.clave} className="flex items-start gap-3 rounded-2xl border border-gold/10 bg-void/40 p-3">
+                  <span className="font-display text-2xl leading-none text-gold-light">{b.cantidad}×</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium leading-tight">{b.producto.nombre}{b.producto.variantes.length > 1 && <span className="text-smoke"> · {b.variante.presentacion}</span>}</p>
+                    <p className={`mt-0.5 flex items-center gap-1 text-[11px] ${est === 'cocina' ? 'text-gold' : 'text-venom'}`}>{est === 'cocina' ? <ChefHat size={12} /> : <Martini size={12} />} {est === 'cocina' ? 'Cocina' : 'Barra'}{b.asiento ? ` · puesto ${b.asiento}` : ''}</p>
+                    {b.detalle.map((d) => <p key={d} className={`text-xs ${d.startsWith('SIN') ? 'text-red-300' : 'text-venom'}`}>{d}</p>)}
+                    {b.notas && <p className="text-xs text-sky-200">“{b.notas}”</p>}
+                  </div>
+                  <span className="text-sm text-smoke tabular-nums">{dinero(b.unitario * b.cantidad, moneda)}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </Modal>
+      )}
 
       {cobrando && <Cobro cuenta={c} tasa={cat.tasa} onCerrar={() => setCobrando(false)} onPagado={(nueva) => cuenta.setDatos(nueva)} />}
 
