@@ -42,6 +42,24 @@ export function AbrirCajaRapida({ onAbierta }: { onAbierta: () => void }) {
 
   if (!puedeAbrir) return <p className="text-sm text-smoke">La caja está cerrada. Pídele al administrador o a la barra que la abra, o usa <b className="text-ivory">Pasar a caja</b> para que la cobren allá.</p>;
   if (cajas.cargando) return <Cargando />;
+  // No hay ninguna caja creada todavía: se crea aquí mismo y se abre
+  if (!(cajas.datos ?? []).length)
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-smoke">Todavía no hay ninguna caja creada en el sistema. Crea la caja de la barra y la abres con tu monto.</p>
+        <Boton variante="oro" tam="lg" className="w-full" cargando={ocupado} onClick={async () => {
+          setOcupado(true);
+          try {
+            await adm('/cajas', { method: 'POST', body: { nombre: 'Caja Barra', descripcion: 'Los clientes de barra van cancelando aquí' } });
+            cajas.recargar();
+          } catch (e) {
+            avisos.error(e);
+          } finally {
+            setOcupado(false);
+          }
+        }}>Crear la «Caja Barra»</Boton>
+      </div>
+    );
   // Se abrió desde otra pantalla mientras esta mostraba «cerrada»: se avisa y se actualiza todo
   if (!cerradas.length)
     return (

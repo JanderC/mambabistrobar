@@ -176,6 +176,11 @@ export function Cobro({ cuenta, tasa, onCerrar, onPagado, cerrarAlPagar }: { cue
         {/* Métodos */}
         <section>
           <h3 className="mb-2 text-xs tracking-wider text-gold uppercase">¿Con qué paga? <span className="text-smoke normal-case">· puedes combinar varios</span></h3>
+          {metodos.datos && !metodos.datos.length && (
+            <p className="mb-2 rounded-xl border border-red-400/40 bg-red-950/30 p-3 text-sm text-red-100">
+              No hay métodos de pago creados. Créalos en Administración → Métodos de pago (Efectivo, Nequi, Pago Móvil…).
+            </p>
+          )}
           {/* Un botón por método y moneda: «Efectivo · dólares» se toca directo, sin cambiar nada después */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {metodos.datos?.flatMap((m) => m.monedas.map((mon) => (
