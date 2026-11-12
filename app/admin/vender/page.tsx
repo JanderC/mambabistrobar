@@ -1,14 +1,15 @@
 'use client';
 
-import { Beer, ChefHat, Minus, Plus, Receipt, Search, Trash2, X, Zap } from 'lucide-react';
+import { Beer, ChefHat, Lock, Minus, Plus, Receipt, Search, Trash2, Unlock, X, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AbrirCajaRapida, type CajaEstado } from '@/components/admin/pos/AbrirCaja';
 import { BandejaQR } from '@/components/admin/pos/BandejaQR';
 import { Cobro } from '@/components/admin/pos/Cobro';
 import { Configurador } from '@/components/admin/pos/Configurador';
 import { type Borrador, type Catalogo, type CategoriaCat, type Cuenta, type ProductoCat, type VarianteCat } from '@/components/admin/pos/tipos';
-import { Boton, Cargando, ErrorCaja, Input, useAvisos, useDatos } from '@/components/admin/ui';
+import { Boton, Cargando, ErrorCaja, Input, Modal, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
 import { type Moneda, dinero } from '@/lib/admin/moneda';
 
@@ -37,6 +38,9 @@ export default function VenderPage() {
   const ajustes = useDatos<{ moneda_principal: Moneda }>('/config/ajustes');
   const moneda: Moneda = ajustes.datos?.moneda_principal ?? 'COP';
   const buscador = useRef<HTMLInputElement>(null);
+  const cajas = useDatos<CajaEstado[]>('/caja', 60_000);
+  const cajaAbierta = cajas.datos?.find((c) => c.sesion && /barra/i.test(c.nombre)) ?? cajas.datos?.find((c) => c.sesion);
+  const [abrirCaja, setAbrirCaja] = useState(false);
 
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<number | 'top' | 'todo'>('top');
@@ -265,6 +269,23 @@ export default function VenderPage() {
               <Link href="/admin/barra" className="text-xs text-smoke hover:text-gold-light">Cuentas abiertas →</Link>
             </div>
 
+            {/* Estado de la caja: sin caja abierta no se puede cobrar, y se abre desde aquí mismo */}
+            {cajas.datos && (cajaAbierta ? (
+              <p className="flex items-center gap-2 border-b border-gold/10 px-4 py-2 text-xs text-smoke">
+                <Unlock size={13} className="text-venom" /> <b className="text-ivory">{cajaAbierta.nombre}</b> abierta · {cajaAbierta.sesion!.usuario}
+                <Link href="/admin/caja" className="ml-auto hover:text-gold-light">Ver caja →</Link>
+              </p>
+            ) : (
+              <button onClick={() => setAbrirCaja(true)} className="m-3 flex items-center gap-3 rounded-2xl border-2 border-gold/60 bg-gold/10 p-3 text-left transition hover:bg-gold/20">
+                <Lock size={22} className="shrink-0 text-gold" />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold text-gold-light">La caja está cerrada</span>
+                  <span className="block text-xs text-smoke">Toca aquí para abrirla y empezar a cobrar</span>
+                </span>
+                <span className="rounded-xl bg-gold px-3 py-2 text-sm font-semibold text-void">Abrir caja</span>
+              </button>
+            ))}
+
             {sinCobrar && !cobrar && (
               <div className="m-3 rounded-2xl border border-gold/40 bg-gold/10 p-3 text-sm">
                 <p>La venta <b>{sinCobrar.numero}</b> quedó <b>sin cobrar</b> ({dinero(sinCobrar.saldo, sinCobrar.moneda)}).</p>
@@ -327,11 +348,17 @@ export default function VenderPage() {
         />
       )}
 
+      {abrirCaja && (
+        <Modal titulo="Abrir caja" subtitulo="Confirma con cuánto efectivo arrancas y listo." onCerrar={() => { setAbrirCaja(false); enfocar(); }} ancho="max-w-md">
+          <AbrirCajaRapida onAbierta={() => { setAbrirCaja(false); cajas.recargar(); enfocar(); }} />
+        </Modal>
+      )}
+
       {cobrar && (
         <Cobro
           cuenta={cobrar} tasa={tasa} cerrarAlPagar
           onPagado={(c) => { if (c.saldo <= 0) setSinCobrar(null); else setSinCobrar(c); }}
-          onCerrar={() => { setCobrar(null); enfocar(); }}
+          onCerrar={() => { setCobrar(null); cajas.recargar(); enfocar(); }}
         />
       )}
     </div>

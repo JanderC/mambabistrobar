@@ -1,8 +1,8 @@
 'use client';
 
 import { Banknote, CheckCircle2, CreditCard, Trash2 } from 'lucide-react';
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { AbrirCajaRapida } from './AbrirCaja';
 import { adm } from '@/lib/admin/api';
 import { MONEDAS, type Moneda, type Tasa, convertir, dinero, redondear, tolerancia } from '@/lib/admin/moneda';
 import { Boton, Cargando, Input, InputNum, Insignia, Interruptor, Modal, Select, useAvisos, useDatos } from '../ui';
@@ -122,9 +122,8 @@ export function Cobro({ cuenta, tasa, onCerrar, onPagado, cerrarAlPagar }: { cue
 
   if (!abiertas.length) {
     return (
-      <Modal titulo="No hay caja abierta" onCerrar={onCerrar} ancho="max-w-md">
-        <p className="text-sm text-smoke">Para recibir pagos primero hay que abrir un turno de caja (con el fondo inicial contado).</p>
-        <Link href="/admin/caja" className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl bg-gold font-semibold text-void">Ir a abrir caja</Link>
+      <Modal titulo="Abre la caja para cobrar" subtitulo="Es un solo paso: confirma con cuánto efectivo arrancas y sigues cobrando." onCerrar={onCerrar} ancho="max-w-md">
+        <AbrirCajaRapida onAbierta={cajas.recargar} />
       </Modal>
     );
   }
