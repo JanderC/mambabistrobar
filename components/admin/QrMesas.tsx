@@ -1,10 +1,11 @@
 'use client';
 
-import { Download, ExternalLink, Printer, RefreshCw } from 'lucide-react';
+import { Download, ExternalLink, FileDown, Printer, RefreshCw } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useEffect, useMemo, useState } from 'react';
 import { Boton, Cargando, ErrorCaja, Insignia, Vacio, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
+import { canvasAJpeg, descargarArchivo, pdfConImagenes } from '@/lib/admin/pdf';
 
 type MesaQr = { id: number; numero: number; nombre: string | null; zona: string; tipo: string; activo: boolean; qr_token: string | null };
 
@@ -35,7 +36,7 @@ export function QrMesas() {
   }, [activas, origen]);
 
   /** Tarjeta lista para imprimir en grande: logo, número de mesa, QR e instrucciones */
-  const descargar = async (m: MesaQr) => {
+  const dibujarTarjeta = async (m: MesaQr) => {
     const W = 1200, H = 1650;
     const lienzo = document.createElement('canvas');
     lienzo.width = W;
@@ -55,7 +56,9 @@ export function QrMesas() {
     g.font = '600 46px Georgia, serif';
     g.fillText('MAMBA BISTRO BAR', W / 2, 380);
     g.fillStyle = '#f5f0e6';
-    g.font = '300 120px Georgia, serif';
+    // Nombres largos («Barra · Barra principal»): se achica la letra hasta que quepa dentro del borde
+    let tam = 120;
+    do g.font = `300 ${tam}px Georgia, serif`; while (g.measureText(titulo(m)).width > W - 180 && (tam -= 6) > 40);
     g.fillText(titulo(m), W / 2, 520);
     const qr = new Image();
     qr.src = await QRCode.toDataURL(url(m), { ...OPCIONES_QR, width: 820 });
@@ -68,16 +71,43 @@ export function QrMesas() {
     g.fillText('Escanea, mira la carta', W / 2, 1515);
     g.fillStyle = '#d4af37';
     g.fillText('y pide desde tu mesa', W / 2, 1580);
+    return lienzo;
+  };
+
+  const descargar = async (m: MesaQr) => {
+    const lienzo = await dibujarTarjeta(m);
     const a = document.createElement('a');
     a.href = lienzo.toDataURL('image/png');
     a.download = `qr-${titulo(m).toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`;
     a.click();
   };
 
+  /** PDF con todas las tarjetas, 4 por hoja carta: se descarga y se imprime desde cualquier lado */
+  const [armandoPdf, setArmandoPdf] = useState(false);
+  const descargarPdf = async () => {
+    setArmandoPdf(true);
+    try {
+      const imagenes = [];
+      for (const m of activas) imagenes.push(await canvasAJpeg(await dibujarTarjeta(m)));
+      descargarArchivo(pdfConImagenes(imagenes), `qr-mesas-mamba.pdf`);
+      avisos.ok(`PDF listo: ${activas.length} códigos, ${Math.ceil(activas.length / 4)} hojas`);
+    } catch (e) {
+      avisos.error(e);
+    } finally {
+      setArmandoPdf(false);
+    }
+  };
+
   /** Hoja para imprimir todos (4 por página, listos para recortar y pegar) */
   const imprimirTodas = () => {
-    const ventana = window.open('', '_blank');
-    if (!ventana) return avisos.error(new Error('El navegador bloqueó la ventana de impresión: permite las ventanas emergentes.'));
+    // Se imprime desde un marco oculto en la misma página: así el navegador no lo bloquea como ventana emergente
+    document.getElementById('qr-impresion')?.remove();
+    const marco = document.createElement('iframe');
+    marco.id = 'qr-impresion';
+    marco.setAttribute('aria-hidden', 'true');
+    marco.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+    document.body.appendChild(marco);
+    const ventana = marco.contentWindow!;
     const tarjetas = activas.map((m) => `
       <div class="t">
         <p class="marca">MAMBA BISTRO BAR</p>
@@ -95,8 +125,9 @@ export function QrMesas() {
       .mesa { margin: 2mm 0 4mm; font-size: 30pt; font-weight: 300; }
       .qr { background: #fff; padding: 3mm; border-radius: 3mm; width: 62mm; margin: 0 auto; } .qr svg { display: block; width: 100%; height: auto; }
       .txt { margin: 4mm 0 0; font: 11pt system-ui, sans-serif; } .txt b { color: #d4af37; font-weight: 600; }
-    </style></head><body><div class="g">${tarjetas}</div><script>window.onload = () => { window.print(); }<\/script></body></html>`);
+    </style></head><body><div class="g">${tarjetas}</div></body></html>`);
     ventana.document.close();
+    setTimeout(() => { ventana.focus(); ventana.print(); }, 300);
   };
 
   const regenerar = async (m: MesaQr) => {
@@ -126,7 +157,10 @@ export function QrMesas() {
           Cada mesa tiene un código propio y secreto: el pedido llega a la barra marcado con esa mesa y nadie puede pedir a otra cambiando un número.
           Imprímelos, recórtalos y pégalos en cada mesa.
         </p>
-        <Boton variante="oro" tam="lg" onClick={imprimirTodas} disabled={Object.keys(svgs).length < activas.length}><Printer size={18} /> Imprimir todos ({activas.length})</Boton>
+        <div className="flex flex-wrap gap-2">
+          <Boton variante="oro" tam="lg" cargando={armandoPdf} onClick={descargarPdf}><FileDown size={18} /> Descargar PDF ({activas.length})</Boton>
+          <Boton tam="lg" onClick={imprimirTodas} disabled={Object.keys(svgs).length < activas.length}><Printer size={18} /> Imprimir</Boton>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {activas.map((m) => (
