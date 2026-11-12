@@ -3,9 +3,10 @@
 import { AlertTriangle, ArrowRight, Beer, CalendarCheck, ChefHat, HandCoins, Lock, Martini, PartyPopper, Unlock, Users, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSesion } from '@/components/admin/Sesion';
-import { Cargando, Dato, ErrorCaja, Insignia, Tarjeta, useDatos } from '@/components/admin/ui';
+import { AbrirCajaRapida } from '@/components/admin/pos/AbrirCaja';
+import { Cargando, Dato, ErrorCaja, Insignia, Modal, Tarjeta, useDatos } from '@/components/admin/ui';
 import { areasPara } from '@/lib/admin/modulos';
 import { type Moneda, type Tasa, dinero, fechaHora, numero } from '@/lib/admin/moneda';
 
@@ -25,6 +26,7 @@ export default function InicioPage() {
   const { usuario, es } = useSesion();
   const router = useRouter();
   const { datos: t, cargando, error, recargar } = useDatos<Tablero>('/reportes/tablero', 30_000);
+  const [abrirCaja, setAbrirCaja] = useState(false);
 
   // Cada rol aterriza en su pantalla de trabajo
   const destino = usuario?.rol === 'mesonero' ? '/admin/mesero' : usuario?.rol === 'cocina' ? '/admin/comandas' : null;
@@ -76,9 +78,20 @@ export default function InicioPage() {
           </Link>
         )}
         {t.cajas.every((c) => !c.abierta_por) && (
-          <Link href="/admin/caja" className="flex items-center gap-3 rounded-2xl border border-gold/40 bg-gold/10 p-3 text-sm text-gold-light">
-            <Lock size={18} className="shrink-0" /> No hay ninguna caja abierta: sin caja no se puede cobrar. <ArrowRight size={15} className="ml-auto" />
-          </Link>
+          es('gerente', 'cajero', 'barra') ? (
+            <button onClick={() => setAbrirCaja(true)} className="flex w-full items-center gap-3 rounded-2xl border-2 border-gold/60 bg-gold/10 p-4 text-left transition hover:bg-gold/20">
+              <Lock size={24} className="shrink-0 text-gold" />
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold text-gold-light">La caja está cerrada</span>
+                <span className="block text-sm text-smoke">Sin caja abierta no se puede cobrar. Ábrela aquí con el efectivo con que arrancas.</span>
+              </span>
+              <span className="shrink-0 rounded-xl bg-gold px-4 py-2.5 font-semibold text-void">Abrir caja</span>
+            </button>
+          ) : (
+            <p className="flex items-center gap-3 rounded-2xl border border-gold/40 bg-gold/10 p-3 text-sm text-gold-light">
+              <Lock size={18} className="shrink-0" /> No hay ninguna caja abierta: pídele al administrador que la abra.
+            </p>
+          )
         )}
       </div>
 
@@ -121,7 +134,9 @@ export default function InicioPage() {
             {t.cajas.map((c) => (
               <p key={c.nombre} className="flex items-center justify-between py-1 text-sm">
                 <span className="flex items-center gap-2">{c.abierta_por ? <Unlock size={15} className="text-venom" /> : <Lock size={15} className="text-smoke" />} {c.nombre}</span>
-                <span className="text-xs text-smoke">{c.abierta_por ? `Abierta · ${c.abierta_por}` : 'Cerrada'}</span>
+                {c.abierta_por || !es('gerente', 'cajero', 'barra')
+                  ? <span className="text-xs text-smoke">{c.abierta_por ? `Abierta · ${c.abierta_por}` : 'Cerrada'}</span>
+                  : <button onClick={() => setAbrirCaja(true)} className="rounded-lg border border-gold/40 px-2.5 py-1 text-xs text-gold-light hover:bg-gold/10">Abrir</button>}
               </p>
             ))}
           </div>
@@ -169,6 +184,12 @@ export default function InicioPage() {
           <Link href="/admin/recordatorios" className="mt-3 flex items-center justify-between rounded-xl bg-white/5 px-3 py-2 text-sm hover:bg-white/10">Ver recordatorios del equipo <ArrowRight size={15} /></Link>
         </Tarjeta>
       </div>
+
+      {abrirCaja && (
+        <Modal titulo="Abrir caja" subtitulo="Confirma con cuánto efectivo arrancas y listo." onCerrar={() => setAbrirCaja(false)} ancho="max-w-md">
+          <AbrirCajaRapida onAbierta={() => { setAbrirCaja(false); recargar(); }} />
+        </Modal>
+      )}
 
       {/* Lanzador de módulos */}
       <div className="mt-8 space-y-6">
