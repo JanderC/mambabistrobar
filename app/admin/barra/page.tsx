@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { BotonImpresora } from '@/components/admin/ImpresoraComandas';
 import { BandejaQR } from '@/components/admin/pos/BandejaQR';
+import { PorEnviarCocina } from '@/components/admin/pos/PorEnviarCocina';
 import { NombreCliente } from '@/components/admin/pos/NombreCliente';
 import { Boton, Cargando, Encabezado, ErrorCaja, Insignia, Pestanas, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
@@ -78,6 +79,7 @@ export default function BarraPage() {
 
       {/* Lo que piden los clientes desde el QR de su mesa: aparece arriba de todo hasta que se atiende */}
       <BandejaQR compacta />
+      <PorEnviarCocina />
 
       {/* ------------------------------------------------------------ Buscar o abrir: un solo campo */}
       <section className="sticky top-14 z-20 -mx-3 mb-5 border-b border-gold/10 bg-[#020a07]/95 px-3 pt-1 pb-3 backdrop-blur-xl sm:mx-0 sm:rounded-3xl sm:border sm:p-4">

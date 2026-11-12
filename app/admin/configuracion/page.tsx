@@ -76,6 +76,7 @@ export default function ConfiguracionPage() {
             <Interruptor activo={a.permitir_venta_sin_stock} onCambio={(v) => setA({ ...a, permitir_venta_sin_stock: v })} etiqueta="Permitir vender aunque el inventario quede en negativo" />
             <br />
             <Interruptor activo={a.pedidos_qr_activo ?? true} onCambio={(v) => setA({ ...a, pedidos_qr_activo: v })} etiqueta="Los clientes pueden pedir desde el QR de la mesa (si se apaga, el QR solo muestra la carta)" />
+            <Interruptor activo={a.cocina_pasa_por_barra ?? true} onCambio={(v) => setA({ ...a, cocina_pasa_por_barra: v })} etiqueta="Lo de cocina que piden los mesoneros pasa primero por la barra (la barra lo envía y ahí se imprime la comanda)" />
           </div>
           <Campo etiqueta="Texto al pie del ticket"><Input value={a.ticket_pie ?? ''} onChange={(e) => setA({ ...a, ticket_pie: e.target.value })} /></Campo>
           <Boton variante="oro" cargando={guardando} onClick={() => guardar('/config/ajustes', a)}>Guardar sistema</Boton>

@@ -10,7 +10,7 @@ import { sesion } from './api';
  * se reconecta sola y avisa a las pantallas para que recarguen lo que se hayan perdido.
  */
 export type EventoVivo =
-  | { tipo: 'pedido'; cuenta_id: number; numero: string; lugar: string; cliente: string | null; mesonero: string; estaciones: string[]; items: number; directo: boolean }
+  | { tipo: 'pedido'; cuenta_id: number; numero: string; lugar: string; cliente: string | null; mesonero: string; estaciones: string[]; items: number; directo: boolean; /** Lo de cocina que quedó esperando en la barra */ por_enviar?: number }
   | { tipo: 'comanda'; estado: string; items: { id: number; nombre: string; cantidad: number; cuenta_id: number; lugar: string; cliente: string | null; mesonero_id: number | null; estacion: string }[] }
   | { tipo: 'cobro'; accion: 'solicitado' | 'cancelado' | 'cobrado'; cuenta_id: number; numero: string; lugar: string; cliente: string | null; mesonero: string | null; mesonero_id: number | null }
   | { tipo: 'cuenta'; accion: string; cuenta_id: number; mesonero_id?: number | null }

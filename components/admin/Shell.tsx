@@ -330,6 +330,12 @@ function EnVivo() {
 
   useVivo((e) => {
     // Pedido de un mesonero que lleva cosas de barra: a quien atiende la barra, con acceso directo a las comandas
+    // Lo de cocina que mandó un mesonero espera en la barra: aviso con sonido para enviarlo
+    if (e.tipo === 'pedido' && e.por_enviar && cobra) {
+      sonar('pedido');
+      avisos.info(`🍳 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''}: pedido de cocina esperando en la barra (${e.mesonero}). Revísalo y envíalo.`, '/admin/vender');
+      return;
+    }
     if (e.tipo === 'pedido' && !e.directo && cobra && e.estaciones.includes('barra') && !ruta.startsWith('/admin/comandas')) {
       sonar('pedido');
       avisos.info(`🍹 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''}: pedido nuevo para la barra (${e.items} ${e.items === 1 ? 'producto' : 'productos'} · ${e.mesonero})`, '/admin/comandas');

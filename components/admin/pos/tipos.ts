@@ -38,7 +38,7 @@ export type Borrador = {
 export type ItemCuenta = {
   id: number; nombre: string; presentacion: string | null; cantidad: number; precio_base: number; extras: number; subtotal: number; asiento: number | null;
   notas: string | null; estado: 'pendiente' | 'preparando' | 'listo' | 'entregado' | 'anulado'; estacion: string; ronda: number; creado_en: string; usuario: string | null;
-  anulado_motivo: string | null; modificadores: { tipo: 'sin' | 'adicional' | 'seleccion'; nombre: string; cantidad: number; precio_extra: number }[];
+  anulado_motivo: string | null; /** Lo de cocina que espera que la barra lo envíe */ en_barra_desde?: string | null; modificadores: { tipo: 'sin' | 'adicional' | 'seleccion'; nombre: string; cantidad: number; precio_extra: number }[];
 };
 
 export type PagoCuenta = {

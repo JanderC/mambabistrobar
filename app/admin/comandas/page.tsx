@@ -4,6 +4,7 @@ import { Check, ChefHat, Clock, Flame, Martini, Maximize2, Printer, User, Volume
 import { useEffect, useMemo, useState } from 'react';
 import { BotonImpresora, reimprimirComanda } from '@/components/admin/ImpresoraComandas';
 import { useSesion } from '@/components/admin/Sesion';
+import { PorEnviarCocina } from '@/components/admin/pos/PorEnviarCocina';
 import { Boton, Cargando, Encabezado, ErrorCaja, Pestanas, Vacio, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
 import { agrupar, hace } from '@/lib/admin/moneda';
@@ -19,7 +20,7 @@ type Item = {
 const lugar = (p: Item) => (p.mesa_tipo === 'barra' || (p.tipo === 'barra' && !p.mesa_numero) ? `Barra${p.puesto ? ` · ${p.puesto}` : ''}` : p.tipo === 'llevar' ? 'Para llevar' : `Mesa ${p.mesa_numero}`);
 
 export default function ComandasPage() {
-  const { usuario } = useSesion();
+  const { usuario, es } = useSesion();
   const [estacion, setEstacion] = useState<'cocina' | 'barra' | 'todas'>(usuario?.rol === 'cocina' ? 'cocina' : usuario?.rol === 'barra' ? 'barra' : 'todas');
   const { datos, cargando, error, recargar } = useDatos<Item[]>(`/comandas${estacion === 'todas' ? '' : `?estacion=${estacion}`}`, 30_000);
   const avisos = useAvisos();
@@ -74,6 +75,9 @@ export default function ComandasPage() {
           { valor: 'barra', etiqueta: <span className="flex items-center gap-1.5"><Martini size={15} /> Barra</span>, cuenta: estacion === 'todas' ? datos?.filter((i) => i.estacion === 'barra' && i.estado !== 'listo').length : undefined },
         ]} />
       </Encabezado>
+
+      {/* En la barra: lo de cocina que mandaron los mesoneros, para revisarlo y enviarlo */}
+      {es('gerente', 'cajero', 'barra') && <PorEnviarCocina />}
 
       {cargando ? <Cargando /> : error ? <ErrorCaja mensaje={error} onReintentar={recargar} /> : !tickets.length ? (
         <Vacio titulo="Nada por preparar 🎉">Cuando un mesonero envíe un pedido aparecerá aquí al instante.</Vacio>

@@ -124,7 +124,8 @@ export default function CuentaPage() {
       cuenta.setDatos(nueva);
       setBorrador([]);
       catalogo.recargar();
-      avisos.ok(esDirecto ? 'Agregado a la cuenta' : 'Pedido enviado a preparación');
+      const enBarra = nueva.items.some((i) => i.en_barra_desde);
+      avisos.ok(esDirecto ? 'Agregado a la cuenta' : enBarra ? 'Pedido enviado a la barra: allá lo pasan a cocina' : 'Pedido enviado a preparación');
       setVistaMovil('cuenta');
     } catch (e) {
       avisos.error(e);
@@ -358,7 +359,9 @@ export default function CuentaPage() {
                       </p>
                     ))}
                     <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[11px] text-smoke">
-                      {abierta && <Insignia color={ESTADO_ITEM[i.estado].color}>{ESTADO_ITEM[i.estado].texto}</Insignia>}
+                      {abierta && (i.en_barra_desde && i.estado === 'pendiente'
+                        ? <Insignia color="oro">En barra</Insignia>
+                        : <Insignia color={ESTADO_ITEM[i.estado].color}>{ESTADO_ITEM[i.estado].texto}</Insignia>)}
                       {i.asiento && <span>Puesto {i.asiento}</span>}
                       <span>{soloHora(i.creado_en)}</span>
                       {i.notas && <span>📝 {i.notas}</span>}

@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { AbrirCajaRapida, type CajaEstado } from '@/components/admin/pos/AbrirCaja';
 import { BandejaQR } from '@/components/admin/pos/BandejaQR';
+import { PorEnviarCocina } from '@/components/admin/pos/PorEnviarCocina';
 import { Cobro } from '@/components/admin/pos/Cobro';
 import { type CuentaAbierta, PorCobrar, lugarCuenta } from '@/components/admin/pos/PorCobrar';
 import { Configurador } from '@/components/admin/pos/Configurador';
@@ -245,6 +246,7 @@ function Vender() {
   return (
     <div className="mx-auto max-w-7xl">
       <BandejaQR compacta />
+      <PorEnviarCocina />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
         {/* ------------------------------------------------------------ Carta */}
