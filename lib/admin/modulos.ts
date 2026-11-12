@@ -1,6 +1,6 @@
 import {
   type LucideIcon, Armchair, BarChart3, Bell, Beer, Boxes, CalendarCheck, ChefHat, CreditCard, HandCoins, Home, Images, LayoutGrid, Megaphone,
-  MessageCircle, PartyPopper, QrCode, Receipt, Settings, ShieldCheck, Sparkles, TabletSmartphone, TrendingUp, UserCog, Users, UtensilsCrossed, Wallet,
+  MessageCircle, PartyPopper, QrCode, Receipt, Settings, ShieldCheck, Sparkles, TabletSmartphone, TrendingUp, UserCog, Users, UtensilsCrossed, Wallet, Zap,
 } from 'lucide-react';
 
 export type Rol = 'admin' | 'gerente' | 'cajero' | 'mesonero' | 'barra' | 'cocina' | 'rrpp';
@@ -40,10 +40,11 @@ export const AREAS: Area[] = [
   {
     id: 'operacion', nombre: 'Operación', icono: UtensilsCrossed, color: '#3dffb0',
     modulos: [
+      { href: '/admin/vender', nombre: 'Venta rápida', descripcion: 'Escribe lo que piden, Enter y cobra: tobo, agua, cerveza… en segundos', icono: Zap, roles: COBRO, claves: 'vender venta rapida cobrar tobo agua cerveza pos caja registradora' },
       { href: '/admin/mesero', nombre: 'Mis mesas', descripcion: 'Tablet del mesonero: abre mesas, toma pedidos, entrega y pasa a caja', icono: TabletSmartphone, roles: SERVICIO, claves: 'tablet mesonero mesero pedidos tomar orden' },
       { href: '/admin/salon', nombre: 'Salón', descripcion: 'Plano de mesas y asientos en vivo, aforo y cuentas abiertas', icono: Armchair, roles: [...SERVICIO, 'rrpp'], claves: 'mesas plano asientos aforo puerta' },
       { href: '/admin/pedidos-qr', nombre: 'Pedidos QR', descripcion: 'Lo que los clientes piden desde el QR de su mesa: aceptar o rechazar', icono: QrCode, roles: SERVICIO, claves: 'qr codigo mesa cliente autoservicio pedido celular escanear' },
-      { href: '/admin/barra', nombre: 'Barra', descripcion: 'Venta rápida: los clientes van cancelando', icono: Beer, roles: COBRO, claves: 'venta rapida taburete tobo cerveza' },
+      { href: '/admin/barra', nombre: 'Barra', descripcion: 'Cuentas abiertas de la barra: los clientes van cancelando', icono: Beer, roles: COBRO, claves: 'venta rapida taburete tobo cerveza' },
       { href: '/admin/comandas', nombre: 'Comandas', descripcion: 'Pantalla de cocina y barra con los pedidos por preparar', icono: ChefHat, roles: [...SERVICIO, 'cocina'], claves: 'cocina kds pedidos' },
       { href: '/admin/caja', nombre: 'Caja', descripcion: 'Apertura, ingresos, egresos y cierre con conteo', icono: Wallet, roles: COBRO, claves: 'arqueo cierre fondo efectivo' },
       { href: '/admin/creditos', nombre: 'Por cobrar', descripcion: 'Clientes que fiaron o se fueron sin pagar, su deuda y las mesas con saldo', icono: HandCoins, roles: COBRO, claves: 'creditos fiado deuda deben cobrar abonos cartera se fue' },

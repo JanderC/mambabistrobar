@@ -72,6 +72,7 @@ export default function BarraPage() {
       <Encabezado titulo="Barra" descripcion="Escribe el nombre o una seña del cliente: si ya tiene cuenta aparece al instante; si no, Enter le abre una a su nombre.">
         <Pestanas valor={ver} onCambio={setVer} opciones={[{ valor: 'barra', etiqueta: 'Cuentas de barra' }, { valor: 'todas', etiqueta: 'Todo el local' }]} />
         <BotonImpresora />
+        <Link href="/admin/vender" className="inline-flex h-10 items-center gap-2 rounded-xl bg-gold px-4 text-sm font-semibold text-void hover:brightness-110"><Zap size={15} /> Venta rápida</Link>
         <Link href="/admin/salon" className="inline-flex h-10 items-center gap-2 rounded-xl border border-gold/30 px-4 text-sm text-gold-light hover:bg-gold/10"><Armchair size={15} /> Taburetes</Link>
       </Encabezado>
 

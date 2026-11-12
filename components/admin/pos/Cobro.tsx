@@ -21,7 +21,7 @@ export function saldoPorPuesto(c: Cuenta) {
   return [...mapa.entries()].map(([asiento, saldo]) => ({ asiento, saldo: Math.min(c.saldo, redondear(saldo, c.moneda)) })).filter((x) => x.saldo > tolerancia(c.moneda)).sort((a, b) => a.asiento - b.asiento);
 }
 
-export function Cobro({ cuenta, tasa, onCerrar, onPagado }: { cuenta: Cuenta; tasa: Tasa; onCerrar: () => void; onPagado: (c: Cuenta) => void }) {
+export function Cobro({ cuenta, tasa, onCerrar, onPagado, cerrarAlPagar }: { cuenta: Cuenta; tasa: Tasa; onCerrar: () => void; onPagado: (c: Cuenta) => void; /** Venta rápida: cerrar la cuenta al completar el pago */ cerrarAlPagar?: boolean }) {
   const moneda = cuenta.moneda;
   const metodos = useDatos<MetodoPago[]>('/metodos-pago');
   const cajas = useDatos<CajaAbierta[]>('/caja');
@@ -33,7 +33,7 @@ export function Cobro({ cuenta, tasa, onCerrar, onPagado }: { cuenta: Cuenta; ta
   const [otro, setOtro] = useState<number | null>(null);
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [vueltoMoneda, setVueltoMoneda] = useState<Moneda>(moneda);
-  const [cerrar, setCerrar] = useState(cuenta.tipo !== 'barra');
+  const [cerrar, setCerrar] = useState(cerrarAlPagar ?? cuenta.tipo !== 'barra');
   const [ocupado, setOcupado] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const avisos = useAvisos();

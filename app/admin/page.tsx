@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, ArrowRight, CalendarCheck, ChefHat, HandCoins, Lock, Martini, PartyPopper, Unlock, Users } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Beer, CalendarCheck, ChefHat, HandCoins, Lock, Martini, PartyPopper, Unlock, Users, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo } from 'react';
@@ -22,7 +22,7 @@ type Tablero = {
 };
 
 export default function InicioPage() {
-  const { usuario } = useSesion();
+  const { usuario, es } = useSesion();
   const router = useRouter();
   const { datos: t, cargando, error, recargar } = useDatos<Tablero>('/reportes/tablero', 30_000);
 
@@ -46,6 +46,27 @@ export default function InicioPage() {
         <h1 className="font-display text-3xl font-light">{saludo}, <span className="text-gold-light">{usuario?.nombre.split(' ')[0]}</span></h1>
         <p className="text-sm text-smoke">Así va la noche en Mamba.</p>
       </div>
+
+      {/* Vender es lo primero: a un clic desde que se entra */}
+      {es('gerente', 'cajero', 'barra') && (
+        <div className="mb-4 grid gap-3 sm:grid-cols-[2fr_1fr]">
+          <Link href="/admin/vender" className="group flex items-center gap-4 rounded-3xl bg-gradient-to-r from-gold to-gold-light p-5 text-void shadow-lg shadow-gold/10 transition hover:brightness-110 active:scale-[.99]">
+            <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-void/15"><Zap size={30} /></span>
+            <span className="min-w-0">
+              <span className="block font-display text-2xl font-medium">Venta rápida</span>
+              <span className="block text-sm opacity-80">Escribe lo que piden, Enter, y cobra con F2</span>
+            </span>
+            <ArrowRight size={24} className="ml-auto shrink-0 transition group-hover:translate-x-1" />
+          </Link>
+          <Link href="/admin/barra" className="flex items-center gap-4 rounded-3xl border-2 border-gold/30 p-5 transition hover:border-gold">
+            <Beer size={26} className="shrink-0 text-gold" />
+            <span>
+              <span className="block font-display text-lg">Cuentas de barra</span>
+              <span className="block text-xs text-smoke">Clientes que siguen pidiendo · {t.cuentas_abiertas} abiertas</span>
+            </span>
+          </Link>
+        </div>
+      )}
 
       {/* Avisos que bloquean la operación */}
       <div className="mb-4 space-y-2">
