@@ -81,7 +81,11 @@ export function useDatos<T = any>(ruta: string | null, refrescarMs?: number) {
     recargar();
     if (!refrescarMs) return;
     const id = setInterval(() => document.visibilityState === 'visible' && recargar(), refrescarMs);
-    return () => clearInterval(id);
+    // Al volver a esta pestaña o ventana se actualiza al instante (lo pudieron cambiar en otra pantalla)
+    const alVolver = () => document.visibilityState === 'visible' && recargar();
+    addEventListener('focus', alVolver);
+    document.addEventListener('visibilitychange', alVolver);
+    return () => { clearInterval(id); removeEventListener('focus', alVolver); document.removeEventListener('visibilitychange', alVolver); };
   }, [recargar, refrescarMs, ruta]);
   return { datos, cargando, error, recargar, setDatos };
 }

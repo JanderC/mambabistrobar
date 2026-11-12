@@ -429,6 +429,10 @@ export default function CuentaPage() {
                   <Wallet size={18} /> Pasar a caja
                 </Boton>
               ))}
+              {/* Venta ya cobrada: el administrador o el gerente la pueden anular (sus pagos salen de la caja) */}
+              {c.estado === 'pagada' && es('gerente') && (
+                <Boton variante="peligro" tam="lg" className="flex-1" onClick={() => setAnular('cuenta')}><Ban size={18} /> Anular venta</Boton>
+              )}
               <Boton tam="lg" onClick={() => window.print()} aria-label="Imprimir"><Printer size={18} /></Boton>
               {abierta && (
                 <div className="relative">
@@ -489,14 +493,17 @@ export default function CuentaPage() {
       {cobrando && <Cobro cuenta={c} tasa={cat.tasa} onCerrar={() => setCobrando(false)} onPagado={(nueva) => cuenta.setDatos(nueva)} />}
 
       {anular && (
-        <Modal titulo={anular === 'cuenta' ? `Anular la cuenta ${c.numero}` : `Anular ${anular.cantidad}× ${anular.nombre}`} subtitulo="Lo que ya se descontó vuelve al inventario. Queda registrado quién anuló y por qué."
+        <Modal titulo={anular === 'cuenta' ? `Anular ${c.estado === 'pagada' ? 'la venta' : 'la cuenta'} ${c.numero}` : `Anular ${anular.cantidad}× ${anular.nombre}`}
+          subtitulo={anular === 'cuenta' && c.pagado > 0
+            ? `Se anulan también sus pagos (${dinero(c.pagado, moneda)}): salen del cuadre de la caja. Lo que se descontó vuelve al inventario.`
+            : 'Lo que ya se descontó vuelve al inventario. Queda registrado quién anuló y por qué.'}
           onCerrar={() => { setAnular(null); setMotivo(''); }} ancho="max-w-md"
           pie={<><Boton variante="sutil" onClick={() => setAnular(null)}>Volver</Boton><Boton variante="peligro" cargando={ocupado} disabled={motivo.trim().length < 3} onClick={confirmarAnulacion}>Anular</Boton></>}>
           <Campo etiqueta="Motivo">
             <Input autoFocus value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Error al marcar, el cliente cambió de opinión…" />
           </Campo>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {['Error al marcar', 'Cliente cambió de opinión', 'Producto agotado', 'Cortesía de la casa'].map((m) => (
+            {['Venta de prueba', 'Error al marcar', 'Cliente cambió de opinión', 'Producto agotado', 'Cortesía de la casa'].map((m) => (
               <button key={m} onClick={() => setMotivo(m)} className="rounded-full border border-gold/20 px-2.5 py-1 text-xs text-smoke hover:text-ivory">{m}</button>
             ))}
           </div>

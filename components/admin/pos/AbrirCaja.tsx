@@ -42,7 +42,15 @@ export function AbrirCajaRapida({ onAbierta }: { onAbierta: () => void }) {
 
   if (!puedeAbrir) return <p className="text-sm text-smoke">La caja está cerrada. Pídele al administrador o a la barra que la abra, o usa <b className="text-ivory">Pasar a caja</b> para que la cobren allá.</p>;
   if (cajas.cargando) return <Cargando />;
-  if (!cerradas.length) return <p className="text-sm text-smoke">Todas las cajas ya están abiertas.</p>;
+  // Se abrió desde otra pantalla mientras esta mostraba «cerrada»: se avisa y se actualiza todo
+  if (!cerradas.length)
+    return (
+      <div className="space-y-4 text-center">
+        <p className="text-lg text-venom">✓ La caja ya está abierta</p>
+        <p className="text-sm text-smoke">{(cajas.datos ?? []).filter((c) => c.sesion).map((c) => `${c.nombre} · ${c.sesion!.usuario}`).join(' · ')}</p>
+        <Boton variante="oro" tam="lg" className="w-full" onClick={onAbierta}>Continuar</Boton>
+      </div>
+    );
 
   const abrir = async () => {
     if (!caja) return;
