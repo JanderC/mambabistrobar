@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, ChefHat, Clock, Loader2, Martini, Minus, Plus, Search, Send, ShoppingBag, Trash2, X, XCircle } from 'lucide-react';
+import { BellRing, Check, ChefHat, Clock, Flame, Loader2, Martini, Minus, Plus, Search, Send, ShoppingBag, Trash2, X, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Configurador } from '@/components/admin/pos/Configurador';
 import type { Borrador, CategoriaCat, ProductoCat } from '@/components/admin/pos/tipos';
@@ -16,7 +16,31 @@ type Carta = {
   categorias: CategoriaCat[];
 };
 type Linea = { nombre: string; presentacion: string | null; cantidad: number; detalle: string[]; subtotal: number };
-type MiPedido = { id: number; estado: 'pendiente' | 'aceptado' | 'rechazado'; motivo: string | null; resumen: Linea[]; total: number; moneda: Moneda; creado_en: string };
+type EstadoItem = 'pendiente' | 'preparando' | 'listo' | 'entregado';
+type MiPedido = {
+  id: number; estado: 'pendiente' | 'aceptado' | 'rechazado'; motivo: string | null; resumen: Linea[]; total: number; moneda: Moneda; creado_en: string;
+  /** Ya aceptado: cada producto con su estado en cocina / barra */
+  items?: { nombre: string; presentacion: string | null; cantidad: number; estado: EstadoItem; estacion: string }[];
+};
+
+/** Etapas que ve el cliente: recibido → confirmado → preparando → ¡listo! → entregado */
+const ETAPAS = ['Recibido', 'Confirmado', 'Preparando', '¡Listo!', 'Entregado'] as const;
+function etapa(p: MiPedido): number {
+  if (p.estado === 'pendiente') return 0;
+  const it = p.items ?? [];
+  if (!it.length) return 1;
+  if (it.every((i) => i.estado === 'entregado')) return 4;
+  if (it.every((i) => i.estado === 'listo' || i.estado === 'entregado')) return 3;
+  if (it.some((i) => i.estado !== 'pendiente')) return 2;
+  return 1;
+}
+const enCurso = (p: MiPedido) => p.estado === 'pendiente' || (p.estado === 'aceptado' && etapa(p) < 4 && Date.now() - new Date(p.creado_en).getTime() < 4 * 3600_000);
+const TEXTO_ITEM: Record<EstadoItem, { texto: string; clase: string }> = {
+  pendiente: { texto: 'En cola', clase: 'bg-white/10 text-smoke' },
+  preparando: { texto: 'Preparando', clase: 'bg-gold/20 text-gold-light' },
+  listo: { texto: '¡Listo!', clase: 'bg-venom/25 text-venom' },
+  entregado: { texto: 'Entregado', clase: 'bg-sky-500/20 text-sky-200' },
+};
 
 const sinTildes = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' });
@@ -74,12 +98,15 @@ export function PedirQR({ token }: { token: string }) {
     try { setMisPedidos(await api<MiPedido[]>(`${token}/pedidos?ids=${ids.join(',')}`)); } catch { /* reintenta en el próximo ciclo */ }
   }, [token, leerIds]);
   useEffect(() => { refrescarPedidos(); }, [refrescarPedidos]);
-  const hayPendientes = misPedidos.some((p) => p.estado === 'pendiente');
+  // Mientras haya algo por confirmar o preparándose, se consulta seguido para que el cliente vea cada cambio
+  const hayEnCurso = misPedidos.some(enCurso);
   useEffect(() => {
-    if (!hayPendientes) return;
+    if (!hayEnCurso) return;
     const t = setInterval(refrescarPedidos, 5000);
-    return () => clearInterval(t);
-  }, [hayPendientes, refrescarPedidos]);
+    const alVolver = () => document.visibilityState === 'visible' && refrescarPedidos();
+    document.addEventListener('visibilitychange', alVolver);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', alVolver); };
+  }, [hayEnCurso, refrescarPedidos]);
 
   const moneda = carta?.moneda ?? 'COP';
   const puedePedir = !!carta?.pedidos_activos;
@@ -339,7 +366,7 @@ export function PedirQR({ token }: { token: string }) {
 
       {/* ------------------------------------------------------------ Seguimiento justo después de enviar */}
       {seguimiento && (
-        <Modal titulo={seguimiento.estado === 'pendiente' ? '¡Pedido enviado!' : seguimiento.estado === 'aceptado' ? '¡Confirmado!' : 'No pudimos tomar tu pedido'} onCerrar={() => setRecienEnviado(null)} ancho="max-w-md"
+        <Modal titulo={seguimiento.estado === 'pendiente' ? '¡Pedido enviado!' : seguimiento.estado === 'aceptado' ? ETAPAS[etapa(seguimiento)] : 'No pudimos tomar tu pedido'} onCerrar={() => setRecienEnviado(null)} ancho="max-w-md"
           pie={<Boton variante="oro" tam="lg" className="w-full" onClick={() => setRecienEnviado(null)}>{seguimiento.estado === 'rechazado' ? 'Entendido' : 'Seguir viendo la carta'}</Boton>}>
           <div className="py-4 text-center">
             {seguimiento.estado === 'pendiente' && (
@@ -349,13 +376,7 @@ export function PedirQR({ token }: { token: string }) {
                 <p className="mt-1 text-sm text-smoke">Esta pantalla se actualiza sola. No hace falta enviarlo otra vez.</p>
               </>
             )}
-            {seguimiento.estado === 'aceptado' && (
-              <>
-                <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-venom/20"><Check size={44} className="text-venom" /></span>
-                <p className="mt-4 text-lg">Ya lo están preparando</p>
-                <p className="mt-1 text-sm text-smoke">En un momento te lo llevan a la mesa. ¡Disfruta!</p>
-              </>
-            )}
+            {seguimiento.estado === 'aceptado' && <Seguimiento p={seguimiento} grande />}
             {seguimiento.estado === 'rechazado' && (
               <>
                 <span className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-red-500/15"><XCircle size={44} className="text-red-300" /></span>
@@ -380,6 +401,41 @@ export function PedirQR({ token }: { token: string }) {
   );
 }
 
+/** Barra de progreso del pedido y el estado de cada producto: cambia sola mientras lo preparan */
+function Seguimiento({ p, grande = false }: { p: MiPedido; grande?: boolean }) {
+  const e = etapa(p);
+  const mensaje = ['La barra está revisando tu pedido', 'Confirmado: entró a la cocina y la barra', 'Lo están preparando', '¡Listo! Ya te lo llevan a la mesa', 'Entregado. ¡Disfruta!'][e];
+  return (
+    <div className={grande ? 'text-left' : ''}>
+      <p className={`mb-3 flex items-center gap-2 ${grande ? 'justify-center text-lg' : 'text-sm font-medium'} ${e >= 3 ? 'text-venom' : 'text-gold-light'}`}>
+        {e === 2 ? <Flame size={grande ? 22 : 16} className="animate-pulse" /> : e === 3 ? <BellRing size={grande ? 22 : 16} className="animate-bounce" /> : e === 4 ? <Check size={grande ? 22 : 16} /> : <Clock size={grande ? 22 : 16} />}
+        {mensaje}
+      </p>
+      {/* Pasos */}
+      <div className="flex items-center gap-1">
+        {ETAPAS.map((n, k) => (
+          <div key={n} className="flex flex-1 flex-col items-center gap-1">
+            <div className={`h-1.5 w-full rounded-full transition-all duration-700 ${k <= e ? (e >= 3 ? 'bg-venom' : 'bg-gold') : 'bg-white/10'} ${k === e && e < 4 ? 'animate-pulse' : ''}`} />
+            <span className={`text-[10px] ${k === e ? 'font-semibold text-ivory' : k < e ? 'text-smoke' : 'text-smoke/50'}`}>{n}</span>
+          </div>
+        ))}
+      </div>
+      {/* Cada producto */}
+      {(p.items ?? []).length > 0 && (
+        <ul className="mt-3 space-y-1.5">
+          {p.items!.map((i, k) => (
+            <li key={k} className="flex items-center gap-2 text-sm">
+              {i.estacion === 'cocina' ? <ChefHat size={13} className="shrink-0 text-gold" /> : <Martini size={13} className="shrink-0 text-venom" />}
+              <span className="min-w-0 flex-1 truncate text-ivory/90">{Number(i.cantidad)}× {i.nombre}</span>
+              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${TEXTO_ITEM[i.estado].clase}`}>{TEXTO_ITEM[i.estado].texto}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function EstadoPedido({ p }: { p: MiPedido }) {
   const est = {
     pendiente: { icono: <Clock size={16} />, texto: 'Esperando confirmación de la barra', clase: 'border-gold/40 bg-gold/10 text-gold-light' },
@@ -387,6 +443,13 @@ function EstadoPedido({ p }: { p: MiPedido }) {
     rechazado: { icono: <XCircle size={16} />, texto: p.motivo ? `No se tomó: ${p.motivo}` : 'No se pudo tomar', clase: 'border-red-400/30 bg-red-500/10 text-red-200' },
   }[p.estado];
   const unidades = p.resumen.reduce((s, l) => s + l.cantidad, 0);
+  if (p.estado === 'aceptado')
+    return (
+      <div className={`rounded-2xl border px-3 py-3 ${etapa(p) >= 3 ? 'border-venom/40 bg-emerald/20' : 'border-gold/30 bg-gold/5'}`}>
+        <Seguimiento p={p} />
+        <p className="mt-2 text-[11px] text-smoke">Pedido de las {hora(p.creado_en)}</p>
+      </div>
+    );
   return (
     <div className={`flex items-center gap-3 rounded-2xl border px-3 py-2.5 ${est.clase}`}>
       <span className={p.estado === 'pendiente' ? 'animate-pulse' : ''}>{est.icono}</span>
