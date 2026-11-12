@@ -24,7 +24,6 @@ export function AbrirCajaRapida({ onAbierta }: { onAbierta: () => void }) {
   const cerradas = (cajas.datos ?? []).filter((c) => !c.sesion);
   const [cajaId, setCajaId] = useState<number | null>(null);
   const [fondo, setFondo] = useState<Record<Moneda, number | null>>({ COP: null, USD: null, VES: null });
-  const [otras, setOtras] = useState(false);
   const [ocupado, setOcupado] = useState(false);
 
   // La de barra si existe; si no, la primera cerrada. El fondo arranca con lo que dejó el último cierre.
@@ -37,7 +36,6 @@ export function AbrirCajaRapida({ onAbierta }: { onAbierta: () => void }) {
   useEffect(() => {
     if (!caja) return;
     setFondo({ COP: caja.arrastre?.cop ?? null, USD: caja.arrastre?.usd || null, VES: caja.arrastre?.ves || null });
-    setOtras(!!(caja.arrastre?.usd || caja.arrastre?.ves));
   }, [caja?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!puedeAbrir) return <p className="text-sm text-smoke">La caja está cerrada. Pídele al administrador o a la barra que la abra, o usa <b className="text-ivory">Pasar a caja</b> para que la cobren allá.</p>;
@@ -95,16 +93,26 @@ export function AbrirCajaRapida({ onAbierta }: { onAbierta: () => void }) {
           ))}
         </div>
       )}
-      <Campo etiqueta="¿Con cuánto efectivo arrancas? (pesos)" ayuda={caja?.arrastre ? `El último cierre dejó ${dinero(caja.arrastre.cop, 'COP')}. Cuéntalo y corrige si no cuadra.` : 'Cuenta los billetes y monedas que hay en la caja. Si no hay nada, déjalo en 0.'}>
-        <InputNum valor={fondo.COP} onCambio={(v) => setFondo({ ...fondo, COP: v })} placeholder="0" autoFocus className="!h-14 !text-2xl" onKeyDown={(e) => e.key === 'Enter' && abrir()} />
-      </Campo>
-      {otras ? (
+      {/* Efectivo con que arranca el turno, en cada moneda (lo que no haya, se deja vacío) */}
+      <div>
+        <p className="mb-2 text-[11px] font-medium tracking-wider text-gold/80 uppercase">¿Con cuánto efectivo arrancas?</p>
         <div className="grid grid-cols-2 gap-3">
-          {MONEDAS.filter((m) => m !== 'COP').map((m) => <Campo key={m} etiqueta={`Fondo en ${m}`}><InputNum valor={fondo[m]} onCambio={(v) => setFondo({ ...fondo, [m]: v })} placeholder="0" /></Campo>)}
+          <Campo etiqueta="Pesos (COP)">
+            <InputNum valor={fondo.COP} onCambio={(v) => setFondo({ ...fondo, COP: v })} placeholder="0" autoFocus className="!h-14 !text-2xl" onKeyDown={(e) => e.key === 'Enter' && abrir()} />
+          </Campo>
+          <Campo etiqueta="Dólares (USD)">
+            <InputNum valor={fondo.USD} onCambio={(v) => setFondo({ ...fondo, USD: v })} placeholder="0" className="!h-14 !text-2xl" onKeyDown={(e) => e.key === 'Enter' && abrir()} />
+          </Campo>
         </div>
-      ) : (
-        <button onClick={() => setOtras(true)} className="text-xs text-gold-light underline-offset-2 hover:underline">También hay dólares o bolívares en la caja</button>
-      )}
+        <Campo etiqueta="Bolívares (VES)" className="mt-3">
+          <InputNum valor={fondo.VES} onCambio={(v) => setFondo({ ...fondo, VES: v })} placeholder="0" onKeyDown={(e) => e.key === 'Enter' && abrir()} />
+        </Campo>
+        <p className="mt-2 text-[11px] text-smoke/80">
+          {caja?.arrastre
+            ? `El último cierre dejó ${MONEDAS.filter((m) => caja.arrastre![m.toLowerCase() as 'cop' | 'usd' | 'ves']).map((m) => dinero(caja.arrastre![m.toLowerCase() as 'cop' | 'usd' | 'ves'], m)).join(' · ') || 'la caja vacía'}. Cuéntalo y corrige si no cuadra.`
+            : 'Cuenta los billetes de cada moneda. Lo que no haya, déjalo vacío.'}
+        </p>
+      </div>
       <Boton variante="oro" tam="lg" className="!h-14 w-full !text-base" cargando={ocupado} onClick={abrir}><Unlock size={18} /> Abrir {caja?.nombre ?? 'caja'}</Boton>
     </div>
   );
