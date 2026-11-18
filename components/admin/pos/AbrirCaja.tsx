@@ -8,7 +8,7 @@ import { adm } from '@/lib/admin/api';
 import { type Moneda, MONEDAS, dinero } from '@/lib/admin/moneda';
 
 export type CajaEstado = {
-  id: number; nombre: string; sesion: { id: number; usuario: string } | null;
+  id: number; nombre: string; sesion: { id: number; usuario: string; fecha_apertura: string } | null;
   arrastre: { usd: number; cop: number; ves: number } | null;
 };
 

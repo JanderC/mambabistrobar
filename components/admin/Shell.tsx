@@ -327,18 +327,20 @@ function EnVivo() {
   const avisos = useAvisos();
   const cobra = es('gerente', 'cajero', 'barra');
   const ruta = usePathname();
+  // En el tablero de Inicio los pedidos ya se ven al instante: ahí solo suena, sin carteles encima
+  const enTablero = ruta === '/admin';
 
   useVivo((e) => {
     // Pedido de un mesonero que lleva cosas de barra: a quien atiende la barra, con acceso directo a las comandas
     // Lo de cocina que mandó un mesonero espera en la barra: aviso con sonido para enviarlo
     if (e.tipo === 'pedido' && e.por_enviar && cobra) {
       sonar('pedido');
-      avisos.info(`🍳 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''}: pedido de cocina esperando en la barra (${e.mesonero}). Revísalo y envíalo.`, '/admin/vender');
+      if (!enTablero) avisos.info(`🍳 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''}: pedido de cocina esperando en la barra (${e.mesonero}). Revísalo y envíalo.`, '/admin');
       return;
     }
     if (e.tipo === 'pedido' && !e.directo && cobra && e.estaciones.includes('barra') && !ruta.startsWith('/admin/comandas')) {
       sonar('pedido');
-      avisos.info(`🍹 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''}: pedido nuevo para la barra (${e.items} ${e.items === 1 ? 'producto' : 'productos'} · ${e.mesonero})`, '/admin/comandas');
+      if (!enTablero) avisos.info(`🍹 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''}: pedido nuevo para la barra (${e.items} ${e.items === 1 ? 'producto' : 'productos'} · ${e.mesonero})`, '/admin/comandas');
     }
     if (e.tipo === 'comanda' && e.estado === 'listo') {
       const mios = e.items.filter((i) => i.mesonero_id === usuario?.id);
@@ -348,13 +350,13 @@ function EnVivo() {
     }
     if (e.tipo === 'cobro' && e.accion === 'solicitado' && cobra) {
       sonar('cobro');
-      avisos.info(`💳 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''} pasó a caja (${e.mesonero ?? 'mesonero'})`, `/admin/vender?cobrar=${e.cuenta_id}`);
+      if (!enTablero) avisos.info(`💳 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''} pasó a caja (${e.mesonero ?? 'mesonero'})`, `/admin/vender?cobrar=${e.cuenta_id}`);
     }
     if (e.tipo === 'cobro' && e.accion === 'cobrado' && e.mesonero_id === usuario?.id && !cobra) avisos.ok(`✓ ${e.lugar}: cuenta cobrada en caja`);
     // Pedido de un cliente desde el QR de su mesa: lo atiende la barra (o caja / gerencia)
     if (e.tipo === 'pedido_qr' && e.accion === 'nuevo' && cobra) {
       sonar('qr');
-      avisos.info(`📱 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''} pidió desde el QR (${e.items} ${e.items === 1 ? 'producto' : 'productos'}). Confírmalo aquí.`, '/admin/vender');
+      if (!enTablero) avisos.info(`📱 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''} pidió desde el QR (${e.items} ${e.items === 1 ? 'producto' : 'productos'}). Confírmalo aquí.`, '/admin');
     }
   });
 

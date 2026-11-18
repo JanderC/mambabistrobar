@@ -1,6 +1,6 @@
 'use client';
 
-import { BellRing, Check, ChefHat, Clock, Flame, Loader2, Martini, Minus, Plus, Search, Send, ShoppingBag, Trash2, X, XCircle } from 'lucide-react';
+import { BellRing, Check, Receipt, ChefHat, Clock, Flame, Loader2, Martini, Minus, Plus, Search, Send, ShoppingBag, Trash2, X, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Configurador } from '@/components/admin/pos/Configurador';
 import type { Borrador, CategoriaCat, ProductoCat } from '@/components/admin/pos/tipos';
@@ -141,6 +141,17 @@ export function PedirQR({ token }: { token: string }) {
   const total = carrito.reduce((s, b) => s + b.unitario * b.cantidad, 0);
 
   const [confirmar, setConfirmar] = useState(false);
+  // «Pedir la cuenta»: le llega a caja / barra al instante
+  const [cuenta, setCuenta] = useState<{ cargando: boolean; mensaje: string | null; error: boolean }>({ cargando: false, mensaje: null, error: false });
+  const pedirCuenta = async () => {
+    setCuenta({ cargando: true, mensaje: null, error: false });
+    try {
+      await api(`${token}/cuenta`, {});
+      setCuenta({ cargando: false, mensaje: 'Listo: ya avisamos que pediste la cuenta. En un momento te la llevan.', error: false });
+    } catch (e) {
+      setCuenta({ cargando: false, mensaje: (e as Error).message, error: true });
+    }
+  };
   const enviar = async () => {
     setEnviando(true);
     setErrorEnvio(null);
@@ -214,6 +225,19 @@ export function PedirQR({ token }: { token: string }) {
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="¿Qué se te antoja?" className="!h-11 pl-10" />
             {q && <button onClick={() => setQ('')} className="absolute top-1/2 right-2 grid h-8 w-8 -translate-y-1/2 place-items-center text-smoke" aria-label="Limpiar"><X size={15} /></button>}
           </label>
+          {/* Lo que está pidiendo ahora, siempre a la vista: un toque abre el detalle */}
+          {(() => {
+            const activo = misPedidos.find(enCurso);
+            if (!activo) return null;
+            const e = etapa(activo);
+            return (
+              <button onClick={() => setRecienEnviado(activo.id)} className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm ${e >= 3 ? 'bg-venom/20 text-venom' : 'bg-gold/15 text-gold-light'}`}>
+                {e === 2 ? <Flame size={16} className="animate-pulse" /> : e === 3 ? <BellRing size={16} className="animate-bounce" /> : <Clock size={16} className={e === 0 ? 'animate-pulse' : ''} />}
+                <span className="font-semibold">Tu pedido: {ETAPAS[e]}</span>
+                <span className="ml-auto flex gap-0.5">{ETAPAS.map((n, k) => <span key={n} className={`h-1.5 w-4 rounded-full ${k <= e ? 'bg-current' : 'bg-white/15'}`} />)}</span>
+              </button>
+            );
+          })()}
           <div className="no-scrollbar -mx-4 flex gap-1.5 overflow-x-auto px-4">
             <button onClick={() => setCatId('todas')} className={`h-10 shrink-0 rounded-full px-4 text-sm ${catId === 'todas' ? 'bg-gold font-semibold text-void' : 'border border-gold/20 text-smoke'}`}>Todo</button>
             {carta.categorias.map((c) => (
@@ -239,6 +263,18 @@ export function PedirQR({ token }: { token: string }) {
             {misPedidos.slice(0, 3).map((p) => <EstadoPedido key={p.id} p={p} />)}
           </section>
         )}
+
+        {/* ------------------------------------------------------------ Pedir la cuenta */}
+        <div className="mt-3">
+          {cuenta.mensaje ? (
+            <p className={`rounded-2xl border px-4 py-3 text-sm ${cuenta.error ? 'border-red-400/30 bg-red-500/10 text-red-200' : 'border-venom/40 bg-emerald/30 text-venom'}`}>{cuenta.mensaje}</p>
+          ) : (
+            <button onClick={pedirCuenta} disabled={cuenta.cargando}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-gold/30 text-sm text-gold-light active:bg-gold/10 disabled:opacity-50">
+              {cuenta.cargando ? <Loader2 size={16} className="animate-spin" /> : <Receipt size={16} />} Pedir la cuenta
+            </button>
+          )}
+        </div>
 
         {/* ------------------------------------------------------------ Carta */}
         {productos.map(({ categoria, productos: lista }) => (
