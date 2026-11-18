@@ -5,12 +5,12 @@ import {
 
 export type Rol = 'admin' | 'gerente' | 'cajero' | 'mesonero' | 'barra' | 'cocina' | 'rrpp';
 export const ROLES: { valor: Rol; nombre: string; descripcion: string }[] = [
-  { valor: 'admin', nombre: 'Administrador', descripcion: 'Acceso total' },
-  { valor: 'gerente', nombre: 'Gerente', descripcion: 'Todo menos usuarios y configuración' },
-  { valor: 'cajero', nombre: 'Cajero', descripcion: 'Cobra, abre y cierra caja' },
+  { valor: 'admin', nombre: 'Administrador', descripcion: 'Dueños: acceso total, incluidos usuarios y configuración' },
+  { valor: 'gerente', nombre: 'Gerente', descripcion: 'Administra el local: todo menos usuarios y configuración' },
+  { valor: 'cajero', nombre: 'Cajero', descripcion: 'Cobra y maneja la caja; también atiende mesas y toma pedidos' },
   { valor: 'mesonero', nombre: 'Mesonero', descripcion: 'Toma pedidos en mesas' },
   { valor: 'barra', nombre: 'Barra', descripcion: 'Despacha y cobra en barra' },
-  { valor: 'cocina', nombre: 'Cocina', descripcion: 'Solo ve comandas de cocina' },
+  { valor: 'cocina', nombre: 'Cocina', descripcion: 'Ve las comandas de cocina y marca cuando el plato queda listo' },
   { valor: 'rrpp', nombre: 'RRPP', descripcion: 'Reservas, eventos y clientes' },
 ];
 

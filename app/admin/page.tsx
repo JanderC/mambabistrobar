@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertTriangle, ArrowRight, Beer, CalendarCheck, ChefHat, HandCoins, Lock, Martini, PartyPopper, Unlock, Users, Zap } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Beer, TabletSmartphone, CalendarCheck, ChefHat, HandCoins, Lock, Martini, PartyPopper, Unlock, Users, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -51,7 +51,7 @@ export default function InicioPage() {
 
       {/* Vender es lo primero: a un clic desde que se entra */}
       {es('gerente', 'cajero', 'barra') && (
-        <div className="mb-4 grid gap-3 sm:grid-cols-[2fr_1fr]">
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr]">
           <Link href="/admin/vender" className="group flex items-center gap-4 rounded-3xl bg-gradient-to-r from-gold to-gold-light p-5 text-void shadow-lg shadow-gold/10 transition hover:brightness-110 active:scale-[.99]">
             <span className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-void/15"><Zap size={30} /></span>
             <span className="min-w-0">
@@ -65,6 +65,14 @@ export default function InicioPage() {
             <span>
               <span className="block font-display text-lg">Cuentas de barra</span>
               <span className="block text-xs text-smoke">Clientes que siguen pidiendo · {t.cuentas_abiertas} abiertas</span>
+            </span>
+          </Link>
+          {/* Quien cobra también atiende mesas (cajera-mesonera): sus mesas a un toque */}
+          <Link href="/admin/mesero" className="flex items-center gap-4 rounded-3xl border-2 border-gold/30 p-5 transition hover:border-gold">
+            <TabletSmartphone size={26} className="shrink-0 text-gold" />
+            <span>
+              <span className="block font-display text-lg">Mis mesas</span>
+              <span className="block text-xs text-smoke">Abrir mesa, tomar pedidos y enviarlos</span>
             </span>
           </Link>
         </div>
