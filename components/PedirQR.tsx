@@ -14,6 +14,8 @@ type Carta = {
   mesa: { numero: number; nombre: string | null; zona: string | null; lugar: string };
   moneda: Moneda;
   pedidos_activos: boolean;
+  /** Cuentas abiertas de la mesa (de este u otro grupo): para preguntar «¿estás con ellos?» */
+  cuentas_abiertas?: { id: number; nombre: string; personas: number; minutos: number }[];
   categorias: CategoriaCat[];
 };
 type Linea = { nombre: string; presentacion: string | null; cantidad: number; detalle: string[]; subtotal: number };
@@ -172,10 +174,15 @@ export function PedirQR({ token }: { token: string }) {
   const total = carrito.reduce((s, b) => s + b.unitario * b.cantidad, 0);
 
   const [confirmar, setConfirmar] = useState(false);
+  // Mesa ocupada por otra cuenta y este teléfono aún no tiene la suya: ¿se suma o es cuenta aparte?
+  const [grupo, setGrupo] = useState<{ unirse: number } | 'nueva' | null>(null);
+  const tieneCuenta = misPedidos.some((p) => p.estado === 'aceptado');
+  const otrasCuentas = tieneCuenta ? [] : (carta?.cuentas_abiertas ?? []);
+  const falta = otrasCuentas.length > 0 && !grupo ? 'elegir' : grupo === 'nueva' && !nombre.trim() ? 'nombre' : null;
   // «Pedir la cuenta»: le llega a caja / barra al instante
   const [cuenta, setCuenta] = useState<{ cargando: boolean; mensaje: string | null; error: boolean }>({ cargando: false, mensaje: null, error: false });
   const [verCuenta, setVerCuenta] = useState(false);
-  const cargarCuenta = useCallback(() => api<DatosCuenta>(`${token}/cuenta`), [token]);
+  const cargarCuenta = useCallback(() => api<DatosCuenta>(`${token}/cuenta?ids=${leerIds().join(',')}`), [token, leerIds]);
   const enviar = async () => {
     setEnviando(true);
     setErrorEnvio(null);
@@ -184,6 +191,9 @@ export function PedirQR({ token }: { token: string }) {
         nombre_cliente: nombre.trim() || null,
         nota: nota.trim() || null,
         items: carrito.map((b) => ({ variante_id: b.variante.id, cantidad: b.cantidad, notas: b.notas || null, sin: b.sin, adicionales: b.adicionales, seleccion: b.seleccion })),
+        previos: leerIds(),
+        unirse_a: grupo && grupo !== 'nueva' ? grupo.unirse : null,
+        cuenta_nueva: grupo === 'nueva',
       });
       try {
         localStorage.setItem(clave, JSON.stringify([p.id, ...leerIds()].slice(0, 20)));
@@ -194,6 +204,7 @@ export function PedirQR({ token }: { token: string }) {
       setNota('');
       setVerCarrito(false);
       setConfirmar(false);
+      setGrupo(null);
       setRecienEnviado(p.id);
     } catch (e) {
       setErrorEnvio((e as Error).message);
@@ -438,19 +449,20 @@ export function PedirQR({ token }: { token: string }) {
           pie={
             <div className="w-full space-y-2">
               {errorEnvio && <p className="rounded-xl bg-red-500/15 px-3 py-2 text-sm text-red-200">{errorEnvio}</p>}
+              {falta && carrito.length > 0 && <p className="text-center text-sm text-sky-200">{falta === 'elegir' ? 'Arriba: dinos si te sumas a la cuenta de la mesa o es cuenta aparte.' : 'Escribe tu nombre para abrir tu cuenta aparte.'}</p>}
               {/* Un toque más para corroborar: «¿Está todo bien?» antes de mandarlo a la barra */}
               {confirmar ? (
                 <>
                   <p className="text-center text-sm text-gold-light">¿Está todo bien? Revisa tu pedido arriba.</p>
                   <div className="grid grid-cols-[auto_1fr] gap-2">
                     <Boton tam="lg" className="!h-14" onClick={() => setConfirmar(false)}>Corregir</Boton>
-                    <Boton variante="oro" tam="lg" className="!h-14 !text-base" cargando={enviando} onClick={enviar}>
+                    <Boton variante="oro" tam="lg" className="!h-14 !text-base" cargando={enviando} disabled={!!falta} onClick={enviar}>
                       <Send size={19} /> Sí, enviar · {dinero(total, moneda)}
                     </Boton>
                   </div>
                 </>
               ) : (
-                <Boton variante="oro" tam="lg" className="w-full !h-14 !text-base" disabled={!carrito.length} onClick={() => setConfirmar(true)}>
+                <Boton variante="oro" tam="lg" className="w-full !h-14 !text-base" disabled={!carrito.length || !!falta} onClick={() => setConfirmar(true)}>
                   <Send size={19} /> Enviar a la barra · {dinero(total, moneda)}
                 </Boton>
               )}
@@ -458,6 +470,27 @@ export function PedirQR({ token }: { token: string }) {
           }>
           {!carrito.length ? <p className="py-8 text-center text-smoke">Tu pedido está vacío.</p> : (
             <div className="space-y-5">
+              {otrasCuentas.length > 0 && (
+                <section className={`rounded-2xl border-2 p-3 ${grupo ? 'border-gold/30' : 'border-sky-400/60 bg-sky-400/5'}`}>
+                  <p className="text-sm font-medium text-sky-100">
+                    {otrasCuentas.length === 1
+                      ? <>Esta mesa ya tiene una cuenta abierta a nombre de <b className="text-ivory">«{otrasCuentas[0].nombre}»</b> (desde hace {otrasCuentas[0].minutos < 60 ? `${otrasCuentas[0].minutos} min` : `${Math.floor(otrasCuentas[0].minutos / 60)} h`}). ¿Estás con ellos?</>
+                      : <>Esta mesa tiene varias cuentas abiertas. ¿Con quién estás?</>}
+                  </p>
+                  <div className="mt-2 grid gap-2">
+                    {otrasCuentas.map((c) => (
+                      <button key={c.id} onClick={() => setGrupo({ unirse: c.id })}
+                        className={`rounded-xl border-2 px-3 py-2.5 text-left text-sm ${grupo && grupo !== 'nueva' && grupo.unirse === c.id ? 'border-gold bg-gold/15' : 'border-gold/20'}`}>
+                        Sí, estoy con <b>«{c.nombre}»</b>: sumar a su cuenta
+                      </button>
+                    ))}
+                    <button onClick={() => setGrupo('nueva')}
+                      className={`rounded-xl border-2 px-3 py-2.5 text-left text-sm ${grupo === 'nueva' ? 'border-gold bg-gold/15' : 'border-gold/20'}`}>
+                      No, somos clientes nuevos: <b>cuenta aparte</b>
+                    </button>
+                  </div>
+                </section>
+              )}
               <ul className="space-y-2">
                 {carrito.map((b) => {
                   const cocina = carta.categorias.find((c) => c.productos.some((p) => p.id === b.producto.id))?.estacion === 'cocina';
@@ -482,8 +515,9 @@ export function PedirQR({ token }: { token: string }) {
                 })}
               </ul>
               <div>
-                <p className="mb-1.5 text-xs tracking-wider text-gold uppercase">¿A nombre de quién?</p>
-                <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Tu nombre (opcional)" maxLength={60} className="!h-12" />
+                <p className="mb-1.5 text-xs tracking-wider text-gold uppercase">¿A nombre de quién?{grupo === 'nueva' && <span className="text-sky-200 normal-case"> · necesario para tu cuenta aparte</span>}</p>
+                <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={grupo === 'nueva' ? 'Tu nombre' : 'Tu nombre (opcional)'} maxLength={60}
+                  className={`!h-12 ${falta === 'nombre' ? '!border-sky-400' : ''}`} />
               </div>
               <div>
                 <p className="mb-1.5 text-xs tracking-wider text-gold uppercase">Algo más que debamos saber</p>
@@ -521,7 +555,7 @@ export function PedirQR({ token }: { token: string }) {
 
       {verCuenta && (
         <PagarCuentaQR cargar={cargarCuenta} onCerrar={() => setVerCuenta(false)}
-          avisar={async (pago) => { await api(`${token}/cuenta`, { pago }); setCuenta({ cargando: false, mensaje: 'Listo: ya avisamos que pediste la cuenta. En un momento te la llevan.', error: false }); }} />
+          avisar={async (pago) => { await api(`${token}/cuenta`, { pago, previos: leerIds() }); setCuenta({ cargando: false, mensaje: 'Listo: ya avisamos que pediste la cuenta. En un momento te la llevan.', error: false }); }} />
       )}
 
       {config && (

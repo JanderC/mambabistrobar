@@ -14,6 +14,8 @@ export type PedidoQR = {
   id: number; mesa_id: number; cuenta_id: number | null; nombre_cliente: string | null; nota: string | null; resumen: Linea[]; moneda: Moneda; total: number;
   estado: 'pendiente' | 'aceptado' | 'rechazado'; motivo: string | null; creado_en: string; atendido_en: string | null; atendido_por: string | null;
   mesa_numero: number; mesa_nombre: string | null; mesa_tipo: string; zona: string | null; cuentas_abiertas: CuentaMesa[];
+  /** Lo que eligió el cliente: cuenta aparte (clientes nuevos) o sumarse a una cuenta abierta */
+  cuenta_nueva?: boolean; cuenta_destino?: number | null; destino_numero?: string | null;
 };
 
 const MOTIVOS = ['Se agotó, ¿quieres otra cosa?', 'Ya te lo tomó tu mesero', 'Pedido repetido', 'La cocina ya cerró'];
@@ -38,7 +40,7 @@ export function BandejaQR({ compacta = false }: { compacta?: boolean }) {
   const atendidos = (datos ?? []).filter((p) => p.estado !== 'pendiente');
 
   const aceptar = async (p: PedidoQR, cuentaId: number | null = null) => {
-    if (cuentaId == null && p.cuentas_abiertas.length > 1) return setElegir(p);
+    if (cuentaId == null && p.cuentas_abiertas.length > 1 && !p.cuenta_nueva && !p.cuenta_destino) return setElegir(p);
     setOcupado(p.id);
     try {
       await adm(`/pedidos-qr/${p.id}/aceptar`, { method: 'POST', body: { cuenta_id: cuentaId } });

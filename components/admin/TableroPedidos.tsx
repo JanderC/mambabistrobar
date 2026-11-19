@@ -127,7 +127,7 @@ export function TableroPedidos() {
   };
 
   const aceptar = (p: PedidoQR, cuentaId: number | null = null) => {
-    if (cuentaId == null && p.cuentas_abiertas.length > 1) return setElegirCuenta(p);
+    if (cuentaId == null && p.cuentas_abiertas.length > 1 && !p.cuenta_nueva && !p.cuenta_destino) return setElegirCuenta(p);
     setElegirCuenta(null);
     return hacer(`qr-${p.id}`, () => adm(`/pedidos-qr/${p.id}/aceptar`, { method: 'POST', body: { cuenta_id: cuentaId } }), `${p.mesa_tipo === 'barra' ? 'Barra' : `Mesa ${p.mesa_numero}`}: aceptado`);
   };
@@ -179,6 +179,9 @@ export function TableroPedidos() {
                 {f.tipo === 'qr' ? (
                   <Tarjeta color="sky" numero={k + 1} lugar={f.p.mesa_tipo === 'barra' ? 'Barra' : `Mesa ${f.p.mesa_numero}`} cliente={f.p.nombre_cliente}
                     etiqueta={<><QrCode size={12} /> Pidió desde el QR · {dinero(f.p.total, f.p.moneda)}</>} desde={f.p.creado_en}>
+                    {f.p.cuenta_nueva ? <p className="mb-1.5 rounded-lg bg-orange-500/15 px-2 py-1 text-xs font-semibold text-orange-200">Clientes nuevos · cuenta aparte</p>
+                      : f.p.destino_numero ? <p className="mb-1.5 rounded-lg bg-venom/15 px-2 py-1 text-xs text-venom">Se suma a {f.p.destino_numero}</p>
+                      : f.p.cuentas_abiertas.length === 1 ? <p className="mb-1.5 rounded-lg bg-white/5 px-2 py-1 text-xs text-smoke">Va a {f.p.cuentas_abiertas[0].numero}{f.p.cuentas_abiertas[0].nombre_cliente ? ` · ${f.p.cuentas_abiertas[0].nombre_cliente}` : ''}</p> : null}
                     <ul className="space-y-1">
                       {f.p.resumen.map((l, x) => (
                         <li key={x}>
