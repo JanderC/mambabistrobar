@@ -1,8 +1,9 @@
 'use client';
 
-import { ChevronDown, ImagePlus, Plus, Search, Star, Trash2 } from 'lucide-react';
+import { Beer, ChevronDown, ImagePlus, Plus, Search, Star, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { CampoForm, Crud } from '@/components/admin/Crud';
+import { CrearTobo } from '@/components/admin/CrearTobo';
 import { Boton, Campo, Cargando, Encabezado, ErrorCaja, Input, InputNum, Insignia, Interruptor, Modal, Pestanas, Select, Tarjeta, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
 import { subirFoto } from '@/lib/admin/imagen';
@@ -99,6 +100,7 @@ function ListaProductos({ categorias, insumos, catsInsumo }: { categorias: Categ
   const [form, setForm] = useState<Producto | null>(null);
   const [abierta, setAbierta] = useState(0);
   const [guardando, setGuardando] = useState(false);
+  const [tobo, setTobo] = useState(false);
   const avisos = useAvisos();
 
   const grupos = useMemo(() => {
@@ -147,7 +149,11 @@ function ListaProductos({ categorias, insumos, catsInsumo }: { categorias: Categ
         <Boton variante="oro" onClick={() => { setAbierta(0); setForm({ nombre: '', categoria_id: categorias[0]?.id ?? null, descripcion: '', ingredientes: [], etiquetas: [], imagen_url: '', moneda_base: 'COP', destacado: false, disponible: true, visible_web: true, visible_pos: true, orden: 10, variantes: [{ ...varianteVacia(), presentacion: 'Unidad' }] }); }}>
           <Plus size={16} /> Nuevo producto
         </Boton>
+        <Boton variante="borde" onClick={() => setTobo(true)} title="Tobo de cervezas: mezcla fija o la arma el cliente; descuenta del inventario">
+          <Beer size={16} /> Crear tobo
+        </Boton>
       </div>
+      {tobo && <CrearTobo onCerrar={() => setTobo(false)} onCreado={() => { setTobo(false); recargar(); }} />}
 
       {cargando ? <Cargando /> : error ? <ErrorCaja mensaje={error} onReintentar={recargar} /> : (
         <div className="space-y-6">
