@@ -1,6 +1,6 @@
 'use client';
 
-import { Banknote, CheckCircle2, CreditCard, Trash2 } from 'lucide-react';
+import { Banknote, CheckCircle2, CreditCard, Minus, Plus, Trash2, Users } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { AbrirCajaRapida } from './AbrirCaja';
 import { adm } from '@/lib/admin/api';
@@ -11,6 +11,7 @@ import type { Cuenta, MetodoPago } from './tipos';
 const NOMBRE_MONEDA: Record<Moneda, string> = { COP: 'Pesos', USD: 'Dólares', VES: 'Bolívares' };
 type Linea = { clave: number; metodo: MetodoPago; moneda: Moneda; monto: number | null; referencia: string };
 type CajaAbierta = { id: number; nombre: string; sesion: { id: number; usuario: string } | null };
+type Parte = { n: number; monto: number; pagado?: string; vuelto?: string };
 type Resultado = { saldado: boolean; restante: number; vuelto: { monto: number; moneda: Moneda } | null; cuenta: Cuenta };
 
 /** Saldo pendiente de un puesto: lo que consumió (con su parte de servicio/descuento) menos lo que ya pagó */
@@ -22,14 +23,43 @@ export function saldoPorPuesto(c: Cuenta) {
   return [...mapa.entries()].map(([asiento, saldo]) => ({ asiento, saldo: Math.min(c.saldo, redondear(saldo, c.moneda)) })).filter((x) => x.saldo > tolerancia(c.moneda)).sort((a, b) => a.asiento - b.asiento);
 }
 
-export function Cobro({ cuenta, tasa, onCerrar, onPagado, cerrarAlPagar }: { cuenta: Cuenta; tasa: Tasa; onCerrar: () => void; onPagado: (c: Cuenta) => void; /** Venta rápida: cerrar la cuenta al completar el pago */ cerrarAlPagar?: boolean }) {
+export function Cobro({ cuenta: cuentaInicial, tasa, onCerrar, onPagado, cerrarAlPagar }: { cuenta: Cuenta; tasa: Tasa; onCerrar: () => void; onPagado: (c: Cuenta) => void; /** Venta rápida: cerrar la cuenta al completar el pago */ cerrarAlPagar?: boolean }) {
+  const [cuenta, setCuenta] = useState(cuentaInicial);
   const moneda = cuenta.moneda;
   const metodos = useDatos<MetodoPago[]>('/metodos-pago');
   const cajas = useDatos<CajaAbierta[]>('/caja');
   const abiertas = (cajas.datos ?? []).filter((c) => c.sesion);
   const [cajaId, setCajaId] = useState<number | null>(null);
   const puestos = useMemo(() => saldoPorPuesto(cuenta), [cuenta]);
-  const [modo, setModo] = useState<'todo' | 'puesto' | 'otro'>('todo');
+  const [modo, setModo] = useState<'todo' | 'puesto' | 'otro' | 'dividir'>('todo');
+  // Cuenta dividida entre varias personas: cada parte se cobra aparte, con su método y su moneda
+  const claveDivision = `mamba_division_${cuenta.id}`;
+  const [partes, setPartes] = useState<Parte[]>(() => {
+    try { return JSON.parse(localStorage.getItem(claveDivision) ?? '[]') as Parte[]; } catch { return []; }
+  });
+  const [parteActual, setParteActual] = useState<number | null>(null);
+  const [personas, setPersonas] = useState<number>(Math.max(2, cuentaInicial.personas || 2));
+  const [ultimoPago, setUltimoPago] = useState<string | null>(null);
+  useEffect(() => {
+    try { if (partes.length) localStorage.setItem(claveDivision, JSON.stringify(partes)); else localStorage.removeItem(claveDivision); } catch { /* sin almacenamiento */ }
+  }, [partes, claveDivision]);
+  // Si se abre una cuenta que ya venía dividida, arranca en la primera persona pendiente
+  useEffect(() => {
+    if (partes.some((x) => !x.pagado)) { setModo('dividir'); setParteActual(partes.find((x) => !x.pagado)!.n); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** Reparte el saldo en partes iguales (la última absorbe el redondeo) */
+  const dividir = (n: number) => {
+    const pagadas = partes.filter((x) => x.pagado);
+    const pendiente = cuenta.saldo;
+    const base = redondear(pendiente / n, moneda);
+    const nuevas: Parte[] = Array.from({ length: n }, (_, k) => ({ n: pagadas.length + k + 1, monto: k === n - 1 ? redondear(pendiente - base * (n - 1), moneda) : base }));
+    setPartes([...pagadas, ...nuevas]);
+    setModo('dividir');
+    setParteActual(nuevas[0].n);
+    setLineas([]);
+  };
   const [puesto, setPuesto] = useState<number | null>(null);
   const [otro, setOtro] = useState<number | null>(null);
   const [lineas, setLineas] = useState<Linea[]>([]);
@@ -46,7 +76,11 @@ export function Cobro({ cuenta, tasa, onCerrar, onPagado, cerrarAlPagar }: { cue
     setCajaId(abiertas.find((c) => c.id === guardada)?.id ?? abiertas[0].id);
   }, [abiertas, cajaId, cuenta.tipo]);
 
-  const objetivo = modo === 'todo' ? cuenta.saldo : modo === 'puesto' ? (puestos.find((p) => p.asiento === puesto)?.saldo ?? 0) : Math.min(cuenta.saldo, otro ?? 0);
+  const parte = partes.find((x) => x.n === parteActual);
+  const objetivo = modo === 'todo' ? cuenta.saldo
+    : modo === 'puesto' ? (puestos.find((p) => p.asiento === puesto)?.saldo ?? 0)
+    : modo === 'dividir' ? Math.min(cuenta.saldo, parte && !parte.pagado ? parte.monto : 0)
+    : Math.min(cuenta.saldo, otro ?? 0);
   const enCuenta = (l: Linea) => redondear(convertir(l.monto ?? 0, l.moneda, moneda, tasa), moneda);
   const recibido = lineas.reduce((s, l) => s + enCuenta(l), 0);
   const falta = redondear(objetivo - recibido, moneda);
@@ -90,8 +124,24 @@ export function Cobro({ cuenta, tasa, onCerrar, onPagado, cerrarAlPagar }: { cue
         body: { pagos, sesion_caja_id: sesionId, asiento: modo === 'puesto' ? puesto : null, vuelto_moneda: vueltoMoneda, cerrar: cerrar && cubreTodo },
       });
       localStorage.setItem('mamba_caja', String(cajaId));
-      setResultado({ ...r, vuelto: r.vuelto ?? vueltoLocal });
       onPagado(r.cuenta);
+      setCuenta(r.cuenta);
+      const vuelto = r.vuelto ?? vueltoLocal;
+      if (modo === 'dividir' && parte) {
+        const como = validas.map((l) => `${l.metodo.nombre} ${NOMBRE_MONEDA[l.moneda].toLowerCase()}`).join(' + ');
+        const nuevas = partes.map((x) => (x.n === parte.n ? { ...x, pagado: como, vuelto: vuelto ? dinero(vuelto.monto, vuelto.moneda) : undefined } : x));
+        setPartes(nuevas);
+        const siguiente = nuevas.find((x) => !x.pagado);
+        if (siguiente && r.cuenta.estado === 'abierta' && r.cuenta.saldo > tolerancia(moneda)) {
+          // Sigue con la próxima persona sin salir del cobro; el vuelto de esta queda a la vista
+          setUltimoPago(`Persona ${parte.n} pagó ${dinero(parte.monto, moneda)} con ${como}${vuelto ? ` · VUELTO: ${dinero(vuelto.monto, vuelto.moneda)}` : ''}`);
+          setParteActual(siguiente.n);
+          setLineas([]);
+          return;
+        }
+        setPartes([]);
+      }
+      setResultado({ ...r, vuelto });
     } catch (e) {
       avisos.error(e);
     } finally {
@@ -148,7 +198,9 @@ export function Cobro({ cuenta, tasa, onCerrar, onPagado, cerrarAlPagar }: { cue
             ) : <span className="text-venom">✓ Monto exacto</span>}
           </div>
           <Boton variante="oro" tam="lg" cargando={ocupado} disabled={!lineas.length || recibido <= 0} onClick={cobrar}>
-            {completo ? (cerrar && cubreTodo ? 'Cobrar y cerrar cuenta' : 'Cobrar') : `Abonar ${dinero(recibido, moneda)}`}
+            {modo === 'dividir' && parte && !parte.pagado
+              ? (completo ? `Cobrar persona ${parte.n}${cerrar && cubreTodo ? ' y cerrar' : ''}` : `Abonar ${dinero(recibido, moneda)}`)
+              : completo ? (cerrar && cubreTodo ? 'Cobrar y cerrar cuenta' : 'Cobrar') : `Abonar ${dinero(recibido, moneda)}`}
           </Boton>
         </div>
       }
@@ -158,7 +210,7 @@ export function Cobro({ cuenta, tasa, onCerrar, onPagado, cerrarAlPagar }: { cue
         <section>
           <h3 className="mb-2 text-xs tracking-wider text-gold uppercase">¿Qué va a pagar?</h3>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => { setModo('todo'); setLineas([]); }} className={`rounded-2xl border px-4 py-2.5 text-left ${modo === 'todo' ? 'border-gold bg-gold/15' : 'border-gold/15'}`}>
+            <button onClick={() => { setModo('todo'); setLineas([]); setUltimoPago(null); }} className={`rounded-2xl border px-4 py-2.5 text-left ${modo === 'todo' ? 'border-gold bg-gold/15' : 'border-gold/15'}`}>
               <span className="block text-xs text-smoke">Todo el saldo</span><b className="font-display text-lg">{dinero(cuenta.saldo, moneda)}</b>
             </button>
             {puestos.map((p) => (
@@ -170,7 +222,39 @@ export function Cobro({ cuenta, tasa, onCerrar, onPagado, cerrarAlPagar }: { cue
               <span className="block text-xs text-smoke">Otro monto (abono)</span>
               <InputNum valor={otro} onCambio={(v) => { setModo('otro'); setOtro(v); setLineas([]); }} onFocus={() => setModo('otro')} className="mt-1 h-8 w-32" placeholder={moneda} />
             </div>
+            {/* Dividir entre varias personas */}
+            <div className={`flex items-center gap-2 rounded-2xl border px-3 py-2 ${modo === 'dividir' ? 'border-gold bg-gold/15' : 'border-gold/15'}`}>
+              <Users size={18} className="text-gold" />
+              <span className="text-xs text-smoke">Dividir entre</span>
+              <button onClick={() => setPersonas(Math.max(2, personas - 1))} className="grid h-8 w-8 place-items-center rounded-lg border border-gold/25" aria-label="Menos personas"><Minus size={14} /></button>
+              <b className="w-6 text-center font-display text-xl">{personas}</b>
+              <button onClick={() => setPersonas(Math.min(30, personas + 1))} className="grid h-8 w-8 place-items-center rounded-lg border border-gold/25" aria-label="Más personas"><Plus size={14} /></button>
+              <Boton tam="sm" variante={modo === 'dividir' ? 'borde' : 'oro'} onClick={() => dividir(personas)}>{partes.some((x) => !x.pagado) ? 'Volver a dividir' : 'Dividir'}</Boton>
+            </div>
           </div>
+
+          {/* Una tarjeta por persona: se toca, se elige con qué paga y se cobra; pasa sola a la siguiente */}
+          {modo === 'dividir' && partes.length > 0 && (
+            <div className="mt-3">
+              {ultimoPago && <p className="mb-2 rounded-xl border border-venom/40 bg-emerald/30 px-3 py-2 text-sm text-venom">✓ {ultimoPago}</p>}
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                {partes.map((x) => (
+                  <button key={x.n} disabled={!!x.pagado} onClick={() => { setParteActual(x.n); setLineas([]); setUltimoPago(null); }}
+                    className={`rounded-2xl border-2 p-2.5 text-left transition ${x.pagado ? 'border-venom/40 bg-emerald/20' : parteActual === x.n ? 'border-gold bg-gold/15' : 'border-gold/15 hover:border-gold/50'}`}>
+                    <span className="flex items-center justify-between text-xs text-smoke">Persona {x.n}{x.pagado ? <span className="text-venom">✓ Pagó</span> : parteActual === x.n ? <span className="text-gold-light">Cobrando</span> : null}</span>
+                    <b className={`block font-display text-xl ${x.pagado ? 'text-venom line-through decoration-1' : 'text-gold-light'}`}>{dinero(x.monto, moneda)}</b>
+                    {x.pagado
+                      ? <span className="block truncate text-[11px] text-venom">{x.pagado}{x.vuelto ? ` · vuelto ${x.vuelto}` : ''}</span>
+                      : <span className="block truncate text-[11px] text-smoke">{MONEDAS.filter((m) => m !== moneda).map((m) => dinero(redondear(convertir(x.monto, moneda, m, tasa), m), m)).join(' · ')}</span>}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-smoke">
+                {partes.filter((x) => x.pagado).length} de {partes.length} pagaron · falta {dinero(cuenta.saldo, moneda)}
+                {parte && !parte.pagado && <> · ahora cobras a la <b className="text-gold-light">persona {parte.n}</b>: elige abajo con qué paga</>}
+              </p>
+            </div>
+          )}
         </section>
 
         {/* Métodos */}
