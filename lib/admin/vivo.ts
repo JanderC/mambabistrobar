@@ -13,7 +13,7 @@ export type EventoVivo =
   | { tipo: 'pedido'; cuenta_id: number; numero: string; lugar: string; cliente: string | null; mesonero: string; estaciones: string[]; items: number; directo: boolean; /** Lo de cocina que quedó esperando en la barra */ por_enviar?: number }
   | { tipo: 'comanda'; estado: string; items: { id: number; nombre: string; cantidad: number; cuenta_id: number; lugar: string; cliente: string | null; mesonero_id: number | null; estacion: string }[] }
   | { tipo: 'cobro'; accion: 'solicitado' | 'cancelado' | 'cobrado'; cuenta_id: number; numero: string; lugar: string; cliente: string | null; mesonero: string | null; mesonero_id: number | null }
-  | { tipo: 'cuenta'; accion: string; cuenta_id: number; mesonero_id?: number | null }
+  | { tipo: 'cuenta'; accion: string; cuenta_id: number; mesonero_id?: number | null; lugar?: string; cliente?: string | null }
   | { tipo: 'pedido_qr'; accion: 'nuevo' | 'aceptado' | 'rechazado'; id: number; mesa_id: number; lugar: string; cliente: string | null; items: number; total: number; moneda: string; cuenta_id?: number | null }
   | { tipo: 'whatsapp'; accion: 'conexion'; estado: string }
   | { tipo: 'whatsapp'; accion: 'mensaje'; jid: string; de_mi: boolean; texto: string; nuevo: boolean }

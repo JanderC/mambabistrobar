@@ -1,6 +1,6 @@
 'use client';
 
-import { BellRing, Check, ChefHat, Clock, Flame, Martini, Printer, QrCode, Send, Wallet, X, Zap } from 'lucide-react';
+import { BellRing, Check, ChefHat, Clock, Flame, Martini, Printer, QrCode, Send, UserRound, Wallet, X, Zap } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { useSesion } from '@/components/admin/Sesion';
@@ -17,10 +17,11 @@ import { useVivo } from '@/lib/admin/vivo';
 type Item = {
   id: number; cuenta_id: number; nombre: string; presentacion: string | null; cantidad: number; notas: string | null; estado: 'pendiente' | 'preparando' | 'listo';
   estacion: string; ronda: number; creado_en: string; cuenta: string; tipo: string; nombre_cliente: string | null; mesa_numero: number | null; mesa_nombre: string | null;
-  mesa_tipo: string | null; mesonero: string | null; modificadores: { tipo: string; nombre: string; cantidad: number }[];
+  mesa_tipo: string | null; mesonero: string | null; mesonero_id: number | null; asignado: string | null; modificadores: { tipo: string; nombre: string; cantidad: number }[];
 };
 /** Lo que se mandó junto: una ronda de una cuenta */
-type Pedido = { clave: string; cuenta_id: number; lugar: string; cliente: string | null; mesonero: string | null; desde: string; items: Item[] };
+type Pedido = { clave: string; cuenta_id: number; lugar: string; cliente: string | null; mesonero: string | null; mesonero_id: number | null; asignado: string | null; desde: string; items: Item[] };
+type Miembro = { id: number; nombre: string; rol: string };
 
 const lugarDe = (i: { tipo: string; mesa_numero: number | null; mesa_nombre: string | null; mesa_tipo: string | null }) =>
   i.tipo === 'llevar' ? 'Para llevar' : i.mesa_tipo === 'barra' || !i.mesa_numero ? 'Barra' : (i.mesa_nombre ?? `Mesa ${i.mesa_numero}`);
@@ -29,7 +30,7 @@ function agrupar(items: Item[]): Pedido[] {
   const m = new Map<string, Pedido>();
   for (const i of items) {
     const clave = `${i.cuenta_id}-${i.ronda}`;
-    if (!m.has(clave)) m.set(clave, { clave, cuenta_id: i.cuenta_id, lugar: lugarDe(i), cliente: i.nombre_cliente, mesonero: i.mesonero, desde: i.creado_en, items: [] });
+    if (!m.has(clave)) m.set(clave, { clave, cuenta_id: i.cuenta_id, lugar: lugarDe(i), cliente: i.nombre_cliente, mesonero: i.mesonero, mesonero_id: i.mesonero_id ?? null, asignado: i.asignado ?? null, desde: i.creado_en, items: [] });
     m.get(clave)!.items.push(i);
   }
   return [...m.values()].sort((a, b) => a.desde.localeCompare(b.desde));
@@ -54,6 +55,9 @@ export function TableroPedidos() {
   const cola = useDatos<EnCola[]>('/cuentas/cola-cobro', 20_000);
   const ajustes = useDatos<{ qr_auto_aceptar: boolean; cocina_pasa_por_barra: boolean }>('/config/ajustes');
   const tasa = useDatos<Tasa>('/tasas/actual');
+  // Quién puede llevar pedidos a las mesas
+  const equipo = useDatos<Miembro[]>('/usuarios/equipo');
+  const llevan = (equipo.datos ?? []).filter((m) => ['mesonero', 'cajero', 'barra', 'gerente'].includes(m.rol));
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [rechazar, setRechazar] = useState<PedidoQR | null>(null);
   const [motivo, setMotivo] = useState('');
@@ -129,6 +133,9 @@ export function TableroPedidos() {
   };
   const estado = (g: Pedido, ids: number[], nuevo: 'preparando' | 'listo' | 'entregado', ok?: string) =>
     hacer(`${g.clave}-${nuevo}`, () => adm('/comandas/lote', { method: 'POST', body: { ids, estado: nuevo } }), ok);
+  const asignar = (g: Pedido, mesoneroId: number | null) =>
+    hacer(`asig-${g.clave}`, () => adm(`/cuentas/${g.cuenta_id}`, { method: 'PATCH', body: { mesonero_id: mesoneroId } }),
+      mesoneroId ? `${g.lugar}: lo lleva ${llevan.find((m) => m.id === mesoneroId)?.nombre ?? 'el mesonero'}` : `${g.lugar}: sin mesonero`);
   const abrirCobro = (id: number) => hacer(`cobro-${id}`, async () => setCobrar(await adm<Cuenta>(`/cuentas/${id}`)));
   const cambiarAjuste = (clave: 'qr_auto_aceptar' | 'cocina_pasa_por_barra', valor: boolean) =>
     hacer(`aj-${clave}`, async () => ajustes.setDatos(await adm('/config/operacion', { method: 'PUT', body: { [clave]: valor } })));
@@ -235,7 +242,7 @@ export function TableroPedidos() {
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <Columna titulo="En cola" icono={<Clock size={17} />} n={enCola.length} color="sky" vacio="Lo aceptado espera aquí a que empiecen a prepararlo.">
           {enCola.map((g) => (
-            <Comanda key={g.clave} g={g} onAbrir={() => router.push(`/admin/cuenta/${g.cuenta_id}`)}
+            <Comanda key={g.clave} g={g} equipo={llevan} onAsignar={(id) => asignar(g, id)} onAbrir={() => router.push(`/admin/cuenta/${g.cuenta_id}`)}
               onItem={(i) => estado(g, [i.id], 'listo')}
               acciones={<div className="grid grid-cols-2 gap-2">
                 <Boton cargando={ocupado === `${g.clave}-preparando`} onClick={() => estado(g, g.items.map((i) => i.id), 'preparando')}><Flame size={15} /> Empezar</Boton>
@@ -246,7 +253,7 @@ export function TableroPedidos() {
 
         <Columna titulo="Preparando" icono={<Flame size={17} />} n={preparando.length} color="gold" vacio="Nada al fuego en este momento.">
           {preparando.map((g) => (
-            <Comanda key={g.clave} g={g} onAbrir={() => router.push(`/admin/cuenta/${g.cuenta_id}`)}
+            <Comanda key={g.clave} g={g} equipo={llevan} onAsignar={(id) => asignar(g, id)} onAbrir={() => router.push(`/admin/cuenta/${g.cuenta_id}`)}
               onItem={(i) => estado(g, [i.id], 'listo')}
               acciones={<Boton variante="verde" className="w-full" cargando={ocupado === `${g.clave}-listo`}
                 onClick={() => estado(g, g.items.filter((i) => i.estado !== 'listo').map((i) => i.id), 'listo', `${g.lugar}: listo para llevar`)}><Check size={17} /> ¡Listo!</Boton>} />
@@ -255,7 +262,7 @@ export function TableroPedidos() {
 
         <Columna titulo="Listos para llevar" icono={<Check size={17} />} n={listos.length} color="venom" vacio="Cuando algo esté listo aparece aquí.">
           {listos.map((g) => (
-            <Comanda key={g.clave} g={g} onAbrir={() => router.push(`/admin/cuenta/${g.cuenta_id}`)}
+            <Comanda key={g.clave} g={g} equipo={llevan} onAsignar={(id) => asignar(g, id)} onAbrir={() => router.push(`/admin/cuenta/${g.cuenta_id}`)}
               acciones={<Boton variante="oro" className="w-full" cargando={ocupado === `${g.clave}-entregado`}
                 onClick={() => estado(g, g.items.map((i) => i.id), 'entregado', `${g.lugar}: entregado`)}><Send size={15} /> Entregado</Boton>} />
           ))}
@@ -385,10 +392,21 @@ function Cifra({ titulo, valor, sub, color, alerta = false, onClick }: { titulo:
 }
 
 /** Tarjeta de la zona de comandas: el pedido completo; cada producto se toca para marcarlo listo */
-function Comanda({ g, onAbrir, onItem, acciones }: { g: Pedido; onAbrir: () => void; onItem?: (i: Item) => void; acciones: ReactNode }) {
+function Comanda({ g, equipo, onAsignar, onAbrir, onItem, acciones }: { g: Pedido; equipo: Miembro[]; onAsignar: (id: number | null) => void; onAbrir: () => void; onItem?: (i: Item) => void; acciones: ReactNode }) {
   const enCurso = g.items.some((i) => i.estado !== 'listo');
   return (
-    <Tarjeta color={enCurso && minutos(g.desde) > 20 ? 'red' : enCurso ? 'gold' : 'venom'} lugar={g.lugar} cliente={g.cliente} etiqueta={g.mesonero ?? undefined} desde={g.desde} onAbrir={onAbrir}>
+    <Tarjeta color={enCurso && minutos(g.desde) > 20 ? 'red' : enCurso ? 'gold' : 'venom'} lugar={g.lugar} cliente={g.cliente} desde={g.desde} onAbrir={onAbrir}>
+      {/* Quién lleva este pedido a la mesa: le llega el aviso «listo para llevar» */}
+      <label className={`mb-2 flex items-center gap-2 rounded-xl border px-2 py-1 text-xs ${g.mesonero_id ? 'border-venom/30 bg-emerald/20 text-venom' : 'border-orange-400/50 bg-orange-500/10 text-orange-200'}`}>
+        <UserRound size={13} className="shrink-0" />
+        <span className="shrink-0">{g.mesonero_id ? 'Lleva:' : 'Sin mesonero:'}</span>
+        <select value={g.mesonero_id ?? ''} onChange={(e) => onAsignar(e.target.value ? Number(e.target.value) : null)}
+          className="min-w-0 flex-1 bg-transparent font-semibold outline-none [&>option]:bg-[#06140f] [&>option]:text-ivory">
+          <option value="">— asignar —</option>
+          {equipo.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+          {g.mesonero_id && !equipo.some((m) => m.id === g.mesonero_id) && <option value={g.mesonero_id}>{g.asignado ?? 'Asignado'}</option>}
+        </select>
+      </label>
       <ul className="space-y-1">
         {g.items.map((i) => (
           <li key={i.id}>

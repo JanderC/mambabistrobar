@@ -3,6 +3,7 @@
 import { BellRing, Check, Receipt, Star, ChefHat, Clock, Flame, Loader2, Martini, Minus, Plus, Search, Send, ShoppingBag, Trash2, X, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Configurador } from '@/components/admin/pos/Configurador';
+import { type DatosCuenta, PagarCuentaQR } from '@/components/PagarCuentaQR';
 import type { Borrador, CategoriaCat, ProductoCat } from '@/components/admin/pos/tipos';
 import { Boton, Input, Modal } from '@/components/admin/ui';
 import { API_URL } from '@/lib/api';
@@ -173,15 +174,8 @@ export function PedirQR({ token }: { token: string }) {
   const [confirmar, setConfirmar] = useState(false);
   // «Pedir la cuenta»: le llega a caja / barra al instante
   const [cuenta, setCuenta] = useState<{ cargando: boolean; mensaje: string | null; error: boolean }>({ cargando: false, mensaje: null, error: false });
-  const pedirCuenta = async () => {
-    setCuenta({ cargando: true, mensaje: null, error: false });
-    try {
-      await api(`${token}/cuenta`, {});
-      setCuenta({ cargando: false, mensaje: 'Listo: ya avisamos que pediste la cuenta. En un momento te la llevan.', error: false });
-    } catch (e) {
-      setCuenta({ cargando: false, mensaje: (e as Error).message, error: true });
-    }
-  };
+  const [verCuenta, setVerCuenta] = useState(false);
+  const cargarCuenta = useCallback(() => api<DatosCuenta>(`${token}/cuenta`), [token]);
   const enviar = async () => {
     setEnviando(true);
     setErrorEnvio(null);
@@ -299,9 +293,9 @@ export function PedirQR({ token }: { token: string }) {
           {cuenta.mensaje ? (
             <p className={`rounded-2xl border px-4 py-3 text-sm ${cuenta.error ? 'border-red-400/30 bg-red-500/10 text-red-200' : 'border-venom/40 bg-emerald/30 text-venom'}`}>{cuenta.mensaje}</p>
           ) : (
-            <button onClick={pedirCuenta} disabled={cuenta.cargando}
+            <button onClick={() => setVerCuenta(true)} disabled={cuenta.cargando}
               className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-gold/30 text-sm text-gold-light active:bg-gold/10 disabled:opacity-50">
-              {cuenta.cargando ? <Loader2 size={16} className="animate-spin" /> : <Receipt size={16} />} Pedir la cuenta
+              {cuenta.cargando ? <Loader2 size={16} className="animate-spin" /> : <Receipt size={16} />} Ver mi cuenta y pagar
             </button>
           )}
         </div>}
@@ -412,9 +406,9 @@ export function PedirQR({ token }: { token: string }) {
           {cuenta.mensaje ? (
             <p className={`rounded-2xl border px-4 py-3 text-sm ${cuenta.error ? 'border-red-400/30 bg-red-500/10 text-red-200' : 'border-venom/40 bg-emerald/30 text-venom'}`}>{cuenta.mensaje}</p>
           ) : (
-            <button onClick={pedirCuenta} disabled={cuenta.cargando}
+            <button onClick={() => setVerCuenta(true)} disabled={cuenta.cargando}
               className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-gold/30 text-sm text-gold-light active:bg-gold/10 disabled:opacity-50">
-              {cuenta.cargando ? <Loader2 size={16} className="animate-spin" /> : <Receipt size={16} />} ¿Ya terminaste? Pedir la cuenta
+              {cuenta.cargando ? <Loader2 size={16} className="animate-spin" /> : <Receipt size={16} />} ¿Ya terminaste? Ver mi cuenta y pagar
             </button>
           )}
         </div>
@@ -523,6 +517,11 @@ export function PedirQR({ token }: { token: string }) {
             )}
           </div>
         </Modal>
+      )}
+
+      {verCuenta && (
+        <PagarCuentaQR cargar={cargarCuenta} onCerrar={() => setVerCuenta(false)}
+          avisar={async (pago) => { await api(`${token}/cuenta`, { pago }); setCuenta({ cargando: false, mensaje: 'Listo: ya avisamos que pediste la cuenta. En un momento te la llevan.', error: false }); }} />
       )}
 
       {config && (

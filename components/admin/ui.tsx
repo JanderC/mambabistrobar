@@ -18,6 +18,8 @@ export const useAvisos = () => useContext(AvisosCtx);
 export function AvisosProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [avisos, setAvisos] = useState<Aviso[]>([]);
+  // Una sola notificación a la vista (la más reciente); las demás se despliegan si se tocan
+  const [verTodos, setVerTodos] = useState(false);
   const quitar = useCallback((id: number) => setAvisos((a) => a.filter((x) => x.id !== id)), []);
   const push = useCallback((tipo: Aviso['tipo'], texto: string, ir?: string) => {
     const id = Date.now() + Math.random();
@@ -34,7 +36,12 @@ export function AvisosProvider({ children }: { children: ReactNode }) {
     <AvisosCtx.Provider value={api}>
       {children}
       <div className="pointer-events-none fixed top-16 right-4 z-[100] flex w-[min(92vw,380px)] flex-col gap-2">
-        {avisos.map((a) => {
+        {avisos.length > 1 && (
+          <button onClick={() => setVerTodos(!verTodos)} className="pointer-events-auto self-end rounded-full border border-gold/30 bg-abyss/95 px-3 py-1 text-xs text-gold-light shadow-xl backdrop-blur">
+            {verTodos ? 'Ver solo la última' : `+${avisos.length - 1} ${avisos.length === 2 ? 'aviso' : 'avisos'} más`}
+          </button>
+        )}
+        {(verTodos ? [...avisos].reverse() : avisos.slice(-1)).map((a) => {
           const cls = `pointer-events-auto relative w-full rounded-xl border px-4 py-3 pr-9 text-left text-sm shadow-2xl backdrop-blur ${
             a.tipo === 'error' ? 'border-red-400/40 bg-red-950/90 text-red-100'
             : a.tipo === 'ok' ? 'border-venom/40 bg-emerald/90 text-ivory'

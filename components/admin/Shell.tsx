@@ -352,6 +352,11 @@ function EnVivo() {
       sonar('cobro');
       if (!enTablero) avisos.info(`💳 ${e.lugar}${e.cliente ? ` · ${e.cliente}` : ''} pasó a caja (${e.mesonero ?? 'mesonero'})`, `/admin/vender?cobrar=${e.cuenta_id}`);
     }
+    // Al mesonero: le asignaron una mesa para atenderla y llevar sus pedidos
+    if (e.tipo === 'cuenta' && e.accion === 'asignada' && e.mesonero_id === usuario?.id) {
+      sonar('listo');
+      avisos.info(`🧾 Te asignaron ${e.lugar ?? 'una cuenta'}${e.cliente ? ` · ${e.cliente}` : ''}: tú llevas sus pedidos`, `/admin/cuenta/${e.cuenta_id}`);
+    }
     if (e.tipo === 'cobro' && e.accion === 'cobrado' && e.mesonero_id === usuario?.id && !cobra) avisos.ok(`✓ ${e.lugar}: cuenta cobrada en caja`);
     // Pedido de un cliente desde el QR de su mesa: lo atiende la barra (o caja / gerencia)
     if (e.tipo === 'pedido_qr' && e.accion === 'nuevo' && cobra) {
