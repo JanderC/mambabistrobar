@@ -99,7 +99,7 @@ export function AbrirCajaRapida({ onAbierta }: { onAbierta: () => void }) {
         <p className="mb-2 text-[11px] font-medium tracking-wider text-gold/80 uppercase">¿Con cuánto efectivo arrancas?</p>
         <div className="grid grid-cols-2 gap-3">
           <Campo etiqueta="Pesos (COP)">
-            <InputNum valor={fondo.COP} onCambio={(v) => setFondo({ ...fondo, COP: v })} placeholder="0" autoFocus className="!h-14 !text-2xl" onKeyDown={(e) => e.key === 'Enter' && abrir()} />
+            <InputNum valor={fondo.COP} onCambio={(v) => setFondo({ ...fondo, COP: v })} placeholder="0" autoFocus={typeof window !== 'undefined' && !window.matchMedia('(pointer: coarse)').matches} className="!h-14 !text-2xl" onKeyDown={(e) => e.key === 'Enter' && abrir()} />
           </Campo>
           <Campo etiqueta="Dólares (USD)">
             <InputNum valor={fondo.USD} onCambio={(v) => setFondo({ ...fondo, USD: v })} placeholder="0" className="!h-14 !text-2xl" onKeyDown={(e) => e.key === 'Enter' && abrir()} />

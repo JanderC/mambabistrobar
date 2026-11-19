@@ -83,7 +83,9 @@ function Vender() {
     router.replace('/admin/vender');
   }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const enfocar = () => setTimeout(() => buscador.current?.focus(), 30);
+  // En PC el cursor vuelve al buscador para seguir escribiendo; en tablet/celular no (si no, salta el teclado a cada rato)
+  const tactil = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
+  const enfocar = () => { if (!tactil) setTimeout(() => buscador.current?.focus(), 30); };
 
   // Cada presentación es su propio botón: «Gaseosa · Litro» se vende de un toque
   const opciones = useMemo<Opcion[]>(() => {
@@ -276,7 +278,7 @@ function Vender() {
               <Search size={22} className="absolute top-1/2 left-4 -translate-y-1/2 text-gold" />
               <input
                 ref={buscador}
-                autoFocus
+                autoFocus={!tactil}
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 onKeyDown={(e) => {

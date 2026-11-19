@@ -11,6 +11,12 @@ import type { Cuenta, MetodoPago } from './tipos';
 const NOMBRE_MONEDA: Record<Moneda, string> = { COP: 'Pesos', USD: 'Dólares', VES: 'Bolívares' };
 type Linea = { clave: number; metodo: MetodoPago; moneda: Moneda; monto: number | null; referencia: string };
 type CajaAbierta = { id: number; nombre: string; sesion: { id: number; usuario: string } | null };
+/** Billetes con que suelen pagar, mayores al saldo (los 3 más cercanos) */
+function billetes(saldo: number, m: Moneda) {
+  const tabla: Record<Moneda, number[]> = { COP: [2000, 5000, 10000, 20000, 50000, 100000], USD: [1, 5, 10, 20, 50, 100], VES: [10, 20, 50, 100, 200, 500] };
+  return tabla[m].filter((b) => b > saldo + 0.009).slice(0, 3);
+}
+
 type Parte = { n: number; monto: number; pagado?: string; vuelto?: string };
 type PagoPersona = { n: number; monto: number; como: string; vuelto?: string; lineas: { nombre: string; cantidad: number; monto: number }[] };
 type Resultado = { saldado: boolean; restante: number; vuelto: { monto: number; moneda: Moneda } | null; cuenta: Cuenta };
@@ -36,6 +42,8 @@ export function Cobro({ cuenta: cuentaInicial, tasa, onCerrar, onPagado, cerrarA
   // Cobro por producto: cada cliente paga lo suyo («la hamburguesa y la malteada»). sel = unidades elegidas por producto
   const [sel, setSel] = useState<Record<number, number>>({});
   const [pagosPorPersona, setPagosPorPersona] = useState<PagoPersona[]>([]);
+  // Dividir / abonar quedan como opción: lo normal es cobrar todo de un toque
+  const [verOpciones, setVerOpciones] = useState(false);
   // Cuenta dividida entre varias personas: cada parte se cobra aparte, con su método y su moneda
   const claveDivision = `mamba_division_${cuenta.id}`;
   const [partes, setPartes] = useState<Parte[]>(() => {
@@ -127,6 +135,30 @@ export function Cobro({ cuenta: cuentaInicial, tasa, onCerrar, onPagado, cerrarA
       <p>Pagó con ${esc(x.como)}${x.vuelto ? ` · vuelto ${esc(x.vuelto)}` : ''}</p><p>¡Gracias por tu visita!</p></body></html>`);
     marco.contentWindow!.document.close();
     setTimeout(() => { marco.contentWindow!.focus(); marco.contentWindow!.print(); }, 250);
+  };
+
+  /** Efectivo de un toque: «exacto» o el billete que entrega; cobra todo el saldo y muestra el vuelto */
+  const cobroRapido = async (recibido: number, mon: Moneda) => {
+    const efectivo = metodos.datos?.find((m) => m.es_efectivo && m.monedas.includes(mon));
+    if (!efectivo) return avisos.error('No hay un método «Efectivo» en esa moneda');
+    if (!cajaId) return avisos.error('Selecciona la caja');
+    const sesionId = abiertas.find((c) => c.id === cajaId)?.sesion?.id;
+    if (!sesionId) return avisos.error('Esa caja no está abierta');
+    setOcupado(true);
+    try {
+      const r = await adm<Resultado>(`/cuentas/${cuenta.id}/pagos`, {
+        method: 'POST',
+        body: { pagos: [{ metodo_pago_id: efectivo.id, moneda: mon, monto: recibido, referencia: null }], sesion_caja_id: sesionId, vuelto_moneda: moneda, cerrar, items: [] },
+      });
+      localStorage.setItem('mamba_caja', String(cajaId));
+      onPagado(r.cuenta);
+      setCuenta(r.cuenta);
+      setResultado(r);
+    } catch (e) {
+      avisos.error(e);
+    } finally {
+      setOcupado(false);
+    }
   };
 
   const cobrar = async () => {
@@ -270,11 +302,49 @@ export function Cobro({ cuenta: cuentaInicial, tasa, onCerrar, onPagado, cerrarA
       <div className="space-y-5">
         {/* Qué se cobra */}
         <section>
-          <h3 className="mb-2 text-xs tracking-wider text-gold uppercase">¿Qué va a pagar?</h3>
+          {/* Cobro rápido en efectivo: «exacto» o el billete que entrega → cobra y muestra el vuelto */}
+          {modo === 'todo' && !lineas.length && (
+            <div className="mb-4 rounded-2xl border-2 border-venom/40 bg-emerald/10 p-3">
+              <p className="mb-2 flex items-center gap-2 text-xs tracking-wider text-venom uppercase"><Banknote size={15} /> Efectivo rápido · un toque y listo</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <button disabled={ocupado} onClick={() => cobroRapido(cuenta.saldo, moneda)}
+                  className="rounded-2xl bg-venom px-3 py-3 text-left text-void transition active:scale-[.97] disabled:opacity-50">
+                  <span className="block text-xs font-semibold">Exacto</span>
+                  <b className="font-display text-xl">{dinero(cuenta.saldo, moneda)}</b>
+                </button>
+                {billetes(cuenta.saldo, moneda).map((b) => (
+                  <button key={b} disabled={ocupado} onClick={() => cobroRapido(b, moneda)}
+                    className="rounded-2xl border-2 border-venom/40 px-3 py-3 text-left transition hover:bg-venom/10 active:scale-[.97] disabled:opacity-50">
+                    <span className="block text-xs text-smoke">Paga con</span>
+                    <b className="font-display text-xl">{dinero(b, moneda)}</b>
+                    <span className="block text-xs text-venom">vuelto {dinero(b - cuenta.saldo, moneda)}</span>
+                  </button>
+                ))}
+              </div>
+              {moneda !== 'USD' && metodos.datos?.some((m) => m.es_efectivo && m.monedas.includes('USD')) && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-sm">
+                  <span className="text-xs text-smoke">En dólares:</span>
+                  {billetes(redondear(convertir(cuenta.saldo, moneda, 'USD', tasa), 'USD'), 'USD').map((b) => (
+                    <button key={b} disabled={ocupado} onClick={() => cobroRapido(b, 'USD')} className="rounded-xl border border-venom/30 px-3 py-1.5 text-venom hover:bg-venom/10 disabled:opacity-50">
+                      US${b} <span className="text-[11px] text-smoke">vuelto {dinero(redondear(convertir(b, 'USD', moneda, tasa) - cuenta.saldo, moneda), moneda)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-xs tracking-wider text-gold uppercase">¿Qué va a pagar?</h3>
+            <button onClick={() => setVerOpciones(!verOpciones)} className="flex items-center gap-1 text-xs text-gold-light">
+              <Users size={13} /> {verOpciones || modo !== 'todo' ? 'Ocultar opciones' : 'Dividir la cuenta / abonar'}
+            </button>
+          </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={() => { setModo('todo'); setLineas([]); setUltimoPago(null); }} className={`rounded-2xl border px-4 py-2.5 text-left ${modo === 'todo' ? 'border-gold bg-gold/15' : 'border-gold/15'}`}>
               <span className="block text-xs text-smoke">Todo el saldo</span><b className="font-display text-lg">{dinero(cuenta.saldo, moneda)}</b>
             </button>
+            {(verOpciones || modo !== 'todo') && <>
             {puestos.map((p) => (
               <button key={p.asiento} onClick={() => { setModo('puesto'); setPuesto(p.asiento); setLineas([]); }} className={`rounded-2xl border px-4 py-2.5 text-left ${modo === 'puesto' && puesto === p.asiento ? 'border-gold bg-gold/15' : 'border-gold/15'}`}>
                 <span className="block text-xs text-smoke">Puesto {p.asiento}</span><b className="font-display text-lg">{dinero(p.saldo, moneda)}</b>
@@ -299,6 +369,7 @@ export function Cobro({ cuenta: cuentaInicial, tasa, onCerrar, onPagado, cerrarA
               <button onClick={() => setPersonas(Math.min(30, personas + 1))} className="grid h-8 w-8 place-items-center rounded-lg border border-gold/25" aria-label="Más personas"><Plus size={14} /></button>
               <Boton tam="sm" variante={modo === 'dividir' ? 'borde' : 'oro'} onClick={() => dividir(personas)}>{partes.some((x) => !x.pagado) ? 'Volver a dividir' : 'Dividir'}</Boton>
             </div>
+            </>}
           </div>
 
           {/* Por producto: se tocan los productos de este cliente; lo ya pagado queda marcado */}
@@ -418,7 +489,7 @@ export function Cobro({ cuenta: cuentaInicial, tasa, onCerrar, onPagado, cerrarA
                   {l.metodo.monedas.map((m) => <option key={m} value={m}>{NOMBRE_MONEDA[m]}</option>)}
                 </Select>
                 <div>
-                  <InputNum autoFocus valor={l.monto} onCambio={(v) => setL(l.clave, { monto: v })} placeholder="Monto" />
+                  <InputNum valor={l.monto} onCambio={(v) => setL(l.clave, { monto: v })} placeholder="Monto" />
                   {l.moneda !== moneda && l.monto ? <p className="mt-0.5 text-[11px] text-smoke">= {dinero(enCuenta(l), moneda)}</p> : null}
                 </div>
                 {l.metodo.requiere_referencia ? <Input value={l.referencia} onChange={(e) => setL(l.clave, { referencia: e.target.value })} placeholder="N.º de referencia" /> : <span className="hidden sm:block" />}
