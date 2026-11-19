@@ -1,6 +1,6 @@
 'use client';
 
-import { Beer, ChefHat, Lock, Minus, PenLine, Plus, Receipt, Search, Trash2, Unlock, Wallet, X, Zap } from 'lucide-react';
+import { Beer, ChefHat, Lock, Minus, PenLine, Plus, Printer, Receipt, Search, Trash2, Unlock, Wallet, X, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
@@ -13,6 +13,8 @@ import { Configurador } from '@/components/admin/pos/Configurador';
 import { type Borrador, type Catalogo, type CategoriaCat, type Cuenta, type ProductoCat, type VarianteCat } from '@/components/admin/pos/tipos';
 import { Boton, Cargando, ErrorCaja, Input, Modal, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
+import { BotonImpresora } from '@/components/admin/ImpresoraComandas';
+import { datosTicketCuenta, imprimirTicket, ticketAlCobrar } from '@/lib/admin/tickets';
 import { type Moneda, dinero } from '@/lib/admin/moneda';
 
 type Opcion = { clave: string; producto: ProductoCat; categoria: CategoriaCat; variante: VarianteCat; texto: string; agotado: boolean };
@@ -135,6 +137,31 @@ function Vender() {
   useEffect(() => setSel(0), [texto, cat]);
 
   const total = ticket.reduce((s, l) => s + l.unitario * l.cantidad, 0);
+
+  // ------------------------------------------------------------------ Efectivo de un toque, sin abrir el cobro
+  const metodos = useDatos<{ id: number; es_efectivo: boolean; monedas: Moneda[] }[]>('/metodos-pago');
+  const [vuelto, setVuelto] = useState<{ cuenta: Cuenta; vuelto: number } | null>(null);
+  const billetes = (monto: number) => [2000, 5000, 10000, 20000, 50000, 100000].filter((b) => b > monto).slice(0, 3);
+  const cobrarEfectivo = async (recibido: number) => {
+    if (!ticket.length || ocupado) return;
+    const efectivo = metodos.datos?.find((m) => m.es_efectivo && m.monedas.includes(moneda));
+    if (!cajaAbierta?.sesion) return setAbrirCaja(true);
+    if (!efectivo) return irACobrar();
+    setOcupado(true);
+    try {
+      const c = await crearCuenta();
+      const r = await adm<{ cuenta: Cuenta; vuelto: { monto: number } | null }>(`/cuentas/${c.id}/pagos`, {
+        method: 'POST',
+        body: { pagos: [{ metodo_pago_id: efectivo.id, moneda, monto: recibido, referencia: null }], sesion_caja_id: cajaAbierta.sesion.id, vuelto_moneda: moneda, cerrar: true, items: [] },
+      });
+      setVuelto({ cuenta: r.cuenta, vuelto: r.vuelto?.monto ?? 0 });
+      if (ticketAlCobrar()) void imprimirTicket(datosTicketCuenta(r.cuenta));
+    } catch (e) {
+      avisos.error(e);
+    } finally {
+      setOcupado(false);
+    }
+  };
   const unidades = ticket.reduce((s, l) => s + l.cantidad, 0);
 
   const sumar = (o: Opcion, n = 1) => {
@@ -336,6 +363,7 @@ function Vender() {
           <div className="flex max-h-[calc(100dvh-5.5rem)] flex-col rounded-3xl border border-gold/25 bg-[#04110c]">
             <div className="flex items-center justify-between border-b border-gold/10 px-4 py-3">
               <h1 className="flex items-center gap-2 font-display text-lg"><Zap size={18} className="text-gold" /> Venta rápida</h1>
+              <BotonImpresora />
               <Link href="/admin/barra" className="text-xs text-smoke hover:text-gold-light">Cuentas abiertas →</Link>
             </div>
 
@@ -416,9 +444,24 @@ function Vender() {
                   </Boton>
                 </>
               ) : (
-              <Boton variante="oro" tam="lg" className="!h-16 w-full !text-lg" disabled={!ticket.length} cargando={ocupado} onClick={irACobrar}>
-                <Zap size={20} /> Cobrar <span className="ml-1 rounded-md bg-void/20 px-1.5 text-xs">F2</span>
-              </Boton>
+              <>
+                {/* Efectivo de un toque: exacto o el billete que entrega; cobra, cierra y muestra el vuelto */}
+                {ticket.length > 0 && (
+                  <div className="grid grid-cols-4 gap-1.5">
+                    <button disabled={ocupado} onClick={() => cobrarEfectivo(total)} className="rounded-xl bg-venom px-1 py-2 text-center text-void active:scale-[.97] disabled:opacity-50">
+                      <span className="block text-[10px] font-semibold">EXACTO</span><b className="text-sm">{dinero(total, moneda)}</b>
+                    </button>
+                    {billetes(total).map((b) => (
+                      <button key={b} disabled={ocupado} onClick={() => cobrarEfectivo(b)} className="rounded-xl border-2 border-venom/40 px-1 py-1.5 text-center active:scale-[.97] disabled:opacity-50">
+                        <b className="block text-sm">{dinero(b, moneda)}</b><span className="block text-[10px] text-venom">vuelto {dinero(b - total, moneda)}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <Boton variante="oro" tam="lg" className="!h-14 w-full !text-lg" disabled={!ticket.length} cargando={ocupado} onClick={irACobrar}>
+                  <Zap size={20} /> Otro pago / dividir <span className="ml-1 rounded-md bg-void/20 px-1.5 text-xs">F2</span>
+                </Boton>
+              </>
               )}
               <div className={`grid grid-cols-[1fr_auto] gap-2 ${destino ? 'hidden' : ''}`}>
                 <Boton variante="borde" disabled={!ticket.length || ocupado} onClick={dejarAbierta} title="Para el que va a seguir pidiendo">
@@ -449,6 +492,24 @@ function Vender() {
           onCerrar={() => { setEditando(null); enfocar(); }}
           onAgregar={(b) => { setTicket((t) => t.map((x) => (x.clave === editando.clave ? { ...b, cantidad: b.cantidad === 1 ? editando.cantidad : b.cantidad } : x))); setEditando(null); enfocar(); }}
         />
+      )}
+
+      {vuelto && (
+        <Modal titulo="Venta lista" onCerrar={() => { setVuelto(null); enfocar(); }} ancho="max-w-sm"
+          pie={<div className="grid w-full grid-cols-[auto_1fr] gap-2">
+            <Boton tam="lg" onClick={() => imprimirTicket(datosTicketCuenta(vuelto.cuenta))}><Printer size={17} /> Ticket</Boton>
+            <Boton variante="oro" tam="lg" onClick={() => { setVuelto(null); enfocar(); }}>Siguiente venta</Boton>
+          </div>}>
+          <div className="py-2 text-center">
+            {vuelto.vuelto > 0 ? (
+              <>
+                <p className="text-sm tracking-wider text-smoke uppercase">Vuelto a entregar</p>
+                <p className="font-display text-6xl text-gold-light">{dinero(vuelto.vuelto, moneda)}</p>
+              </>
+            ) : <p className="font-display text-3xl text-venom">✓ Pago exacto</p>}
+            <p className="mt-2 text-sm text-smoke">{vuelto.cuenta.numero} cobrada en efectivo · {dinero(vuelto.cuenta.total, moneda)}</p>
+          </div>
+        </Modal>
       )}
 
       {abrirCaja && (

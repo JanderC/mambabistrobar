@@ -11,7 +11,11 @@
  */
 
 export type Estacion = 'cocina' | 'barra';
-export type ConfigImpresora = { auto: boolean; estaciones: Estacion[]; baudios: number; columnas: number };
+export type ConfigImpresora = {
+  auto: boolean; estaciones: Estacion[]; baudios: number; columnas: number;
+  /** Imprimir el ticket del cliente apenas se cobra (en esta computadora) */
+  ticketAlCobrar: boolean;
+};
 
 export type ItemTicket = {
   id: number; cuenta_id: number; cuenta: string; tipo: string; nombre_cliente: string | null; puesto: number | null;
@@ -21,7 +25,8 @@ export type ItemTicket = {
 };
 
 const CLAVE = 'mamba_impresora';
-const POR_DEFECTO: ConfigImpresora = { auto: false, estaciones: ['cocina'], baudios: 9600, columnas: 42 };
+// Valores de la JALPOS / JAL-880L (Bluetooth, 80 mm), la misma de Maracumango
+const POR_DEFECTO: ConfigImpresora = { auto: false, estaciones: ['cocina'], baudios: 9600, columnas: 42, ticketAlCobrar: false };
 export const EVENTO_CONFIG = 'mamba-impresora';
 
 export function leerConfig(): ConfigImpresora {
@@ -183,5 +188,84 @@ export function ticketPrueba(): Uint8Array {
   t.centro().modo(0x30).ln('MAMBA').modo(0).ln('Bistro Bar').raya();
   t.modo(0x18).ln('Impresora lista').modo(0).ln(new Date().toLocaleString('es-CO'));
   t.raya().ln('Aqui saldran las comandas.');
+  return t.bytes();
+}
+
+// ---------------------------------------------------------------------- Ticket del cliente y cierre de caja
+/** Texto a la izquierda y monto a la derecha en una línea */
+function fila(izq: string, der: string, columnas: number) {
+  const a = plano(izq), b = plano(der);
+  const espacio = columnas - a.length - b.length;
+  return espacio >= 1 ? a + ' '.repeat(espacio) + b : `${a.slice(0, Math.max(0, columnas - b.length - 1))} ${b}`;
+}
+const fechaTicket = () => new Date().toLocaleString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+export type DatosTicketVenta = {
+  numero: string; lugar: string; cliente: string | null; atendio?: string | null;
+  lineas: { cantidad: number; nombre: string; monto: string }[];
+  subtotal: string; servicio?: string | null; descuento?: string | null; total: string;
+  pagos: { metodo: string; monto: string }[]; vuelto?: string | null; equivalentes?: string | null; titulo?: string;
+};
+
+/** Ticket para el cliente: lo que consumió, total, cómo pagó y el vuelto */
+export function ticketVenta(d: DatosTicketVenta): Uint8Array {
+  const { columnas } = leerConfig();
+  const t = new Ticket(columnas);
+  t.centro().modo(0x30).ln('MAMBA').modo(0x08).ln('BISTRO BAR 2.0').modo(0);
+  t.ln(fechaTicket());
+  t.modo(0x08).ln(`${d.titulo ?? 'TICKET'} ${d.numero}`).modo(0).ln(`${d.lugar}${d.cliente ? ` - ${d.cliente}` : ''}`);
+  if (d.atendio) t.ln(`Atendio: ${d.atendio}`);
+  t.raya().izq();
+  for (const l of d.lineas) {
+    const nombre = `${l.cantidad} x ${l.nombre}`;
+    const partes = partir(nombre, columnas - l.monto.length - 1, '    ');
+    partes.forEach((p, k) => t.ln(k === 0 ? fila(p, l.monto, columnas) : p));
+  }
+  t.raya();
+  if (d.servicio || d.descuento) {
+    t.ln(fila('Subtotal', d.subtotal, columnas));
+    if (d.servicio) t.ln(fila('Servicio', d.servicio, columnas));
+    if (d.descuento) t.ln(fila('Descuento', `-${d.descuento}`, columnas));
+  }
+  t.modo(0x18).ln(fila('TOTAL', d.total, columnas)).modo(0);
+  if (d.equivalentes) t.ln(fila('', d.equivalentes, columnas));
+  if (d.pagos.length) {
+    t.raya();
+    for (const p of d.pagos) t.ln(fila(`Pago ${p.metodo}`, p.monto, columnas));
+    if (d.vuelto) t.modo(0x08).ln(fila('VUELTO', d.vuelto, columnas)).modo(0);
+  }
+  t.raya().centro().ln('Gracias por tu visita!').ln('@mambabistrobar');
+  return t.bytes();
+}
+
+export type DatosTicketCierre = {
+  caja: string; abrio: string; desde: string; hasta?: string | null; cerrada: boolean;
+  monedas: { nombre: string; fondo: string; efectivo: string; vueltos: string; ingresos: string; egresos: string; esperado: string; contado?: string | null; diferencia?: string | null }[];
+  porMetodo: { metodo: string; monto: string; pagos: number }[];
+  cuentas: number; totalUsd: string;
+};
+
+/** Resumen del turno de caja (corte parcial o cierre) */
+export function ticketCierre(d: DatosTicketCierre): Uint8Array {
+  const { columnas } = leerConfig();
+  const t = new Ticket(columnas);
+  t.centro().modo(0x30).ln('MAMBA').modo(0x08).ln(d.cerrada ? `CIERRE DE ${d.caja.toUpperCase()}` : `CORTE PARCIAL ${d.caja.toUpperCase()}`).modo(0);
+  t.raya().izq();
+  t.ln(fila('Abrio', d.abrio, columnas)).ln(fila('Desde', d.desde, columnas));
+  if (d.hasta) t.ln(fila('Hasta', d.hasta, columnas));
+  t.ln(fila('Impreso', fechaTicket(), columnas)).ln(fila('Cuentas cobradas', String(d.cuentas), columnas)).ln(fila('Total (USD)', d.totalUsd, columnas));
+  for (const m of d.monedas) {
+    t.raya().modo(0x08).ln(m.nombre).modo(0);
+    t.ln(fila('Fondo inicial', m.fondo, columnas)).ln(fila('+ Efectivo cobrado', m.efectivo, columnas));
+    t.ln(fila('- Vueltos', m.vueltos, columnas)).ln(fila('+ Ingresos', m.ingresos, columnas)).ln(fila('- Egresos', m.egresos, columnas));
+    t.modo(0x08).ln(fila('= Debe haber', m.esperado, columnas)).modo(0);
+    if (m.contado != null) t.ln(fila('Contado', m.contado, columnas));
+    if (m.diferencia != null) t.modo(0x08).ln(fila('Diferencia', m.diferencia, columnas)).modo(0);
+  }
+  if (d.porMetodo.length) {
+    t.raya().modo(0x08).ln('POR METODO DE PAGO').modo(0);
+    for (const p of d.porMetodo) t.ln(fila(`${p.metodo} (${p.pagos})`, p.monto, columnas));
+  }
+  t.raya().ln().ln('Firma: ______________________');
   return t.bytes();
 }

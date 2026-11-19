@@ -126,7 +126,7 @@ export function BotonImpresora() {
       </Boton>
 
       {abierto && (
-        <Modal titulo="Impresora de comandas" subtitulo="Impresora térmica Bluetooth o USB conectada a este computador" onCerrar={() => setAbierto(false)}
+        <Modal titulo="Impresora térmica" subtitulo="JALPOS / JAL-880L u otra ESC/POS, por Bluetooth o USB, conectada a este computador" onCerrar={() => setAbierto(false)}
           pie={<Boton variante="oro" onClick={() => setAbierto(false)}>Listo</Boton>}>
           {!soportaImpresora() ? (
             <p className="rounded-xl border border-red-400/40 bg-red-500/10 p-3 text-sm text-red-200">
@@ -142,14 +142,24 @@ export function BotonImpresora() {
                 {conectada && <Boton onClick={probar} cargando={probando}>Imprimir prueba</Boton>}
               </div>
               {!conectada && (
-                <p className="text-xs leading-relaxed text-smoke">
-                  Empareja primero la impresora por Bluetooth en Windows (o conéctala por USB). Luego toca «Conectar impresora» y elige su puerto
-                  (suele llamarse «Bluetooth… COM» o «USB Serial»). Solo hay que hacerlo una vez en este computador.
-                </p>
+                <ol className="list-decimal space-y-1 rounded-2xl border border-gold/15 bg-gold/5 py-3 pr-3 pl-8 text-xs leading-relaxed text-smoke">
+                  <li>Enciende la <b className="text-ivory">JALPOS</b> y en Windows ve a <b className="text-ivory">Configuración → Bluetooth → Agregar dispositivo</b>. Si pide PIN: <b className="text-ivory">0000</b> o <b className="text-ivory">1234</b>.</li>
+                  <li>Al emparejarla, Windows le crea un <b className="text-ivory">puerto COM</b> (ej. «Serie estándar sobre vínculo Bluetooth (COM5)»).</li>
+                  <li>Toca <b className="text-ivory">Usar configuración JALPOS</b> y luego <b className="text-ivory">Conectar impresora</b>: elige ese puerto COM. Solo una vez en esta computadora.</li>
+                  <li>Imprime la prueba. Si salen símbolos raros, cambia la velocidad.</li>
+                </ol>
               )}
+              <Boton tam="sm" variante="borde" onClick={() => { cambiar({ columnas: 42, baudios: 9600 }); avisos.ok('Configurada como JALPOS / JAL-880L: 80 mm a 9600'); }}>
+                ⚙️ Usar configuración JALPOS (80 mm · 9600)
+              </Boton>
 
               <div className="rounded-2xl border border-gold/15 p-4">
-                <Interruptor activo={cfg.auto} onCambio={(v) => cambiar({ auto: v })} etiqueta={<b>Imprimir solo los pedidos nuevos en esta pantalla</b>} />
+                <Interruptor activo={cfg.ticketAlCobrar} onCambio={(v) => cambiar({ ticketAlCobrar: v })} etiqueta={<b>Imprimir el ticket del cliente al cobrar</b>} />
+                <p className="mt-1 pl-11 text-xs text-smoke">Con sus productos, total, cómo pagó y el vuelto. Si está apagado, se imprime con el botón «Ticket» después de cobrar.</p>
+              </div>
+
+              <div className="rounded-2xl border border-gold/15 p-4">
+                <Interruptor activo={cfg.auto} onCambio={(v) => cambiar({ auto: v })} etiqueta={<b>Imprimir las comandas nuevas en esta pantalla</b>} />
                 <p className="mt-1 pl-11 text-xs text-smoke">Cada pedido sale una sola vez, aunque haya otra pantalla con impresora. Si la impresora falla, se reintenta sola.</p>
                 <div className="mt-3 flex flex-wrap gap-5 pl-11">
                   <Interruptor activo={cfg.estaciones.includes('cocina')} onCambio={(v) => alternarEstacion('cocina', v)} etiqueta="Pedidos de cocina" />

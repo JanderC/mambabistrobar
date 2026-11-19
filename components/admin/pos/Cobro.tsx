@@ -4,6 +4,7 @@ import { Banknote, CheckCircle2, CreditCard, ListChecks, Minus, Plus, Printer, T
 import { useEffect, useMemo, useState } from 'react';
 import { AbrirCajaRapida } from './AbrirCaja';
 import { adm } from '@/lib/admin/api';
+import { datosTicketCuenta, imprimirTicket as imprimirTicketVenta, ticketAlCobrar } from '@/lib/admin/tickets';
 import { MONEDAS, type Moneda, type Tasa, convertir, dinero, redondear, tolerancia } from '@/lib/admin/moneda';
 import { Boton, Cargando, Input, InputNum, Insignia, Interruptor, Modal, Select, useAvisos, useDatos } from '../ui';
 import type { Cuenta, MetodoPago } from './tipos';
@@ -116,26 +117,13 @@ export function Cobro({ cuenta: cuentaInicial, tasa, onCerrar, onPagado, cerrarA
   };
   const setL = (clave: number, cambios: Partial<Linea>) => setLineas(lineas.map((l) => (l.clave === clave ? { ...l, ...cambios } : l)));
 
-  /** Ticket separado para un cliente: sus productos, lo que pagó y cómo (se imprime sin abrir ventanas) */
-  const imprimirTicket = (x: PagoPersona) => {
-    document.getElementById('ticket-cliente')?.remove();
-    const marco = document.createElement('iframe');
-    marco.id = 'ticket-cliente';
-    marco.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
-    document.body.appendChild(marco);
-    const esc = (t: string) => t.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
-    const filas = x.lineas.map((l) => `<tr><td>${l.cantidad}× ${esc(l.nombre)}</td><td class="d">${esc(dinero(l.monto, moneda))}</td></tr>`).join('');
-    marco.contentWindow!.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Ticket</title><style>
-      @page { size: 80mm auto; margin: 4mm; } body { font: 12px monospace; margin: 0; width: 72mm; }
-      h1 { font-size: 14px; text-align: center; margin: 0 0 4px; } p { margin: 2px 0; text-align: center; }
-      table { width: 100%; border-collapse: collapse; margin: 6px 0; } td { padding: 2px 0; vertical-align: top; } .d { text-align: right; white-space: nowrap; }
-      .t { border-top: 1px dashed #000; font-weight: bold; font-size: 14px; }
-    </style></head><body><h1>MAMBA BISTRO BAR</h1><p>Cuenta ${esc(cuenta.numero)} · Cliente ${x.n}</p><p>${new Date().toLocaleString('es-CO')}</p>
-      <table>${filas}<tr class="t"><td>TOTAL</td><td class="d">${esc(dinero(x.monto, moneda))}</td></tr></table>
-      <p>Pagó con ${esc(x.como)}${x.vuelto ? ` · vuelto ${esc(x.vuelto)}` : ''}</p><p>¡Gracias por tu visita!</p></body></html>`);
-    marco.contentWindow!.document.close();
-    setTimeout(() => { marco.contentWindow!.focus(); marco.contentWindow!.print(); }, 250);
-  };
+  /** Ticket separado para un cliente: sus productos, lo que pagó y cómo (JALPOS si está conectada; si no, el navegador) */
+  const imprimirTicket = (x: PagoPersona) =>
+    imprimirTicketVenta({
+      titulo: `CLIENTE ${x.n} -`, numero: cuenta.numero, lugar: cuenta.mesa_numero && cuenta.tipo === 'mesa' ? `Mesa ${cuenta.mesa_numero}` : 'Barra', cliente: cuenta.nombre_cliente,
+      lineas: x.lineas.map((l) => ({ cantidad: l.cantidad, nombre: l.nombre, monto: dinero(l.monto, moneda) })),
+      subtotal: dinero(x.monto, moneda), total: dinero(x.monto, moneda), pagos: [{ metodo: x.como, monto: dinero(x.monto, moneda) }], vuelto: x.vuelto ?? null,
+    });
 
   /** Efectivo de un toque: «exacto» o el billete que entrega; cobra todo el saldo y muestra el vuelto */
   const cobroRapido = async (recibido: number, mon: Moneda) => {
@@ -231,10 +219,20 @@ export function Cobro({ cuenta: cuentaInicial, tasa, onCerrar, onPagado, cerrarA
     }
   };
 
+  // Ticket automático al cobrar (si está activado en la impresora de esta computadora)
+  useEffect(() => {
+    if (resultado?.cuenta.estado === 'pagada' && !pagosPorPersona.length && ticketAlCobrar()) void imprimirTicketVenta(datosTicketCuenta(resultado.cuenta));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultado]);
+
   // ------------------------------------------------------------------ Resultado
   if (resultado) {
     return (
-      <Modal titulo="Pago registrado" onCerrar={onCerrar} ancho="max-w-md" pie={<Boton variante="oro" tam="lg" className="w-full" onClick={onCerrar}>Listo</Boton>}>
+      <Modal titulo="Pago registrado" onCerrar={onCerrar} ancho="max-w-md" pie={
+        <div className="grid w-full grid-cols-[auto_1fr] gap-2">
+          <Boton tam="lg" onClick={() => imprimirTicketVenta(datosTicketCuenta(resultado.cuenta))} title="Ticket para el cliente (JALPOS o navegador)"><Printer size={17} /> Ticket</Boton>
+          <Boton variante="oro" tam="lg" onClick={onCerrar}>Listo</Boton>
+        </div>}>
         <div className="py-4 text-center">
           <CheckCircle2 size={56} className="mx-auto text-venom" />
           {resultado.vuelto ? (
