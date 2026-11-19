@@ -13,6 +13,8 @@ export type ProductoCat = {
   id: number; nombre: string; descripcion: string | null; disponible: boolean; destacado: boolean; variantes: VarianteCat[];
   /** Unidades vendidas en los últimos 30 días (para «Más pedidos») */
   vendidos?: number;
+  /** Foto subida desde Productos (si tiene) */
+  imagen_url?: string | null;
 };
 export type AdicionalCat = { id: number; nombre: string; precios: PorMoneda };
 export type CategoriaCat = { id: number; nombre: string; icono: string | null; tipo: string; estacion: string; adicionales: AdicionalCat[]; productos: ProductoCat[] };

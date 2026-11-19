@@ -1,6 +1,6 @@
 'use client';
 
-import { BellRing, Check, Receipt, ChefHat, Clock, Flame, Loader2, Martini, Minus, Plus, Search, Send, ShoppingBag, Trash2, X, XCircle } from 'lucide-react';
+import { BellRing, Check, Receipt, Star, ChefHat, Clock, Flame, Loader2, Martini, Minus, Plus, Search, Send, ShoppingBag, Trash2, X, XCircle } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Configurador } from '@/components/admin/pos/Configurador';
 import type { Borrador, CategoriaCat, ProductoCat } from '@/components/admin/pos/tipos';
@@ -121,12 +121,42 @@ export function PedirQR({ token }: { token: string }) {
   }, [carta, catId, q]);
 
   const esRapido = (p: ProductoCat) => p.variantes.length === 1 && !p.variantes[0].removibles.length && !p.variantes[0].seleccion;
+  /** Sin nada que elegir en ninguna presentación: se agrega de un toque */
+  const simple = (p: ProductoCat, _c: CategoriaCat) => p.variantes.every((v) => !v.removibles.length && !v.seleccion);
+
+  // Lo más pedido (últimos 30 días); si aún no hay ventas, los destacados
+  const populares = useMemo(() => {
+    if (!carta) return [];
+    const todos = carta.categorias.flatMap((categoria) => categoria.productos.map((producto) => ({ producto, categoria })));
+    const vendidos = todos.filter((x) => (x.producto.vendidos ?? 0) > 0).sort((a, b) => (b.producto.vendidos ?? 0) - (a.producto.vendidos ?? 0));
+    return (vendidos.length >= 3 ? vendidos : [...vendidos, ...todos.filter((x) => x.producto.destacado && !vendidos.includes(x))]).slice(0, 10);
+  }, [carta]);
+
+  // «✓ Agregado» un momento sobre la barra del pedido
+  const [agregado, setAgregado] = useState<string | null>(null);
+  useEffect(() => {
+    if (!agregado) return;
+    const t = setTimeout(() => setAgregado(null), 1400);
+    return () => clearTimeout(t);
+  }, [agregado]);
+  const sumarVariante = (producto: ProductoCat, categoria: CategoriaCat, v: ProductoCat['variantes'][number]) => {
+    if (!puedePedir || agotado(producto) || v.disponibles === 0) return;
+    if (!simple(producto, categoria)) return setConfig({ producto, categoria });
+    setCarrito((b) => {
+      const igual = b.find((x) => x.variante.id === v.id && !x.detalle.length && !x.notas);
+      if (igual) return b.map((x) => (x === igual ? { ...x, cantidad: x.cantidad + 1 } : x));
+      return [...b, { clave: `${v.id}-${Date.now()}`, producto, variante: v, cantidad: 1, asiento: null, notas: '', sin: [], adicionales: [], seleccion: [], unitario: v.precios[moneda], detalle: [] }];
+    });
+    setAgregado(`${producto.nombre}${producto.variantes.length > 1 ? ` · ${v.presentacion}` : ''}`);
+  };
   const agotado = (p: ProductoCat) => !p.disponible || p.variantes.every((v) => v.disponibles === 0);
 
   const sumar = (producto: ProductoCat, categoria: CategoriaCat) => {
     if (!puedePedir || agotado(producto)) return;
-    if (!esRapido(producto) || categoria.adicionales.length) return setConfig({ producto, categoria });
+    // Los adicionales (escarchado, michelado…) son opcionales: un toque agrega el producto solo
+    if (!esRapido(producto)) return setConfig({ producto, categoria });
     const v = producto.variantes[0];
+    setAgregado(producto.nombre);
     setCarrito((b) => {
       const igual = b.find((x) => x.variante.id === v.id && !x.detalle.length && !x.notas);
       if (igual) return b.map((x) => (x === igual ? { ...x, cantidad: x.cantidad + 1 } : x));
@@ -264,8 +294,8 @@ export function PedirQR({ token }: { token: string }) {
           </section>
         )}
 
-        {/* ------------------------------------------------------------ Pedir la cuenta */}
-        <div className="mt-3">
+        {/* ------------------------------------------------------------ Pedir la cuenta (arriba solo si ya consumió; siempre al final de la carta) */}
+        {misPedidos.some((p) => p.estado === 'aceptado') && <div className="mt-3">
           {cuenta.mensaje ? (
             <p className={`rounded-2xl border px-4 py-3 text-sm ${cuenta.error ? 'border-red-400/30 bg-red-500/10 text-red-200' : 'border-venom/40 bg-emerald/30 text-venom'}`}>{cuenta.mensaje}</p>
           ) : (
@@ -274,7 +304,36 @@ export function PedirQR({ token }: { token: string }) {
               {cuenta.cargando ? <Loader2 size={16} className="animate-spin" /> : <Receipt size={16} />} Pedir la cuenta
             </button>
           )}
-        </div>
+        </div>}
+
+        {/* ------------------------------------------------------------ Lo más pedido: un toque y al pedido */}
+        {!q.trim() && catId === 'todas' && populares.length > 0 && (
+          <section className="mt-5">
+            <h2 className="mb-2 flex items-center gap-2 font-display text-xl text-gold-light"><Star size={18} className="fill-gold text-gold" /> Lo más pedido</h2>
+            <div className="no-scrollbar -mx-4 flex snap-x gap-2.5 overflow-x-auto px-4 pb-1">
+              {populares.map(({ producto: p, categoria }) => {
+                const v = p.variantes[0];
+                const n = enCarrito(p);
+                const sinStock = agotado(p);
+                return (
+                  <button key={p.id} disabled={!puedePedir || sinStock} onClick={() => (p.variantes.length > 1 && simple(p, categoria) ? sumarVariante(p, categoria, v) : sumar(p, categoria))}
+                    className={`relative flex w-36 shrink-0 snap-start flex-col overflow-hidden rounded-2xl border text-left transition active:scale-[.97] ${n ? 'border-gold bg-gold/10' : 'border-gold/15 bg-[#06140f]'} ${sinStock ? 'opacity-45' : ''}`}>
+                    <Foto p={p} categoria={categoria} className="h-24 w-full" />
+                    <span className="flex flex-1 flex-col p-2.5">
+                      <span className="line-clamp-2 text-sm leading-tight font-medium">{p.nombre}</span>
+                      <span className="mt-auto pt-1 font-display text-base text-gold-light">{dinero(v.precios[moneda], moneda)}</span>
+                    </span>
+                    {puedePedir && !sinStock && (
+                      <span className="absolute top-2 right-2 grid h-9 w-9 place-items-center rounded-full bg-gold text-void shadow-lg">
+                        {n ? <b className="text-sm">{n}</b> : <Plus size={18} />}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* ------------------------------------------------------------ Carta */}
         {productos.map(({ categoria, productos: lista }) => (
@@ -285,35 +344,61 @@ export function PedirQR({ token }: { token: string }) {
             <ul className="space-y-2">
               {lista.map((p) => {
                 const sinStock = agotado(p);
-                const min = Math.min(...p.variantes.map((v) => v.precios[moneda]));
                 const n = enCarrito(p);
-                const rapido = esRapido(p) && !categoria.adicionales.length;
+                const rapido = esRapido(p);
+                const conOpciones = categoria.adicionales.length > 0 || p.variantes.some((v) => v.removibles.length);
+                // Varias presentaciones sin opciones (Botella · Media · Trago): un botón por presentación, sin abrir nada
+                const enLinea = p.variantes.length > 1 && simple(p, categoria);
                 return (
                   <li key={p.id}>
-                    <div className={`flex items-center gap-3 rounded-2xl border p-3 transition ${n ? 'border-gold/60 bg-gold/10' : 'border-gold/10 bg-[#06140f]'} ${sinStock ? 'opacity-45' : ''}`}>
-                      <button className="min-w-0 flex-1 text-left" disabled={!puedePedir || sinStock} onClick={() => sumar(p, categoria)}>
-                        <p className="leading-tight font-medium">{p.nombre}</p>
-                        {p.descripcion && <p className="mt-0.5 line-clamp-2 text-xs text-smoke">{p.descripcion}</p>}
-                        <p className="mt-1.5 font-display text-lg text-gold-light">
-                          {p.variantes.length > 1 && <span className="mr-1 text-[11px] text-smoke">desde</span>}{dinero(min, moneda)}
-                          {p.variantes.length > 1 && <span className="ml-2 text-[11px] text-smoke">{p.variantes.map((v) => v.presentacion).join(' · ')}</span>}
-                        </p>
-                        {sinStock && <p className="text-xs text-red-300">Agotado por ahora</p>}
-                        {p.variantes[0].seleccion && !sinStock && <p className="text-xs text-venom">Arma tu surtido</p>}
-                      </button>
-                      {puedePedir && !sinStock && (
-                        rapido && n > 0 ? (
-                          <div className="flex shrink-0 flex-col items-center gap-1 rounded-full border border-gold/30 p-0.5">
-                            <button onClick={() => sumar(p, categoria)} className="grid h-10 w-10 place-items-center rounded-full bg-gold text-void" aria-label="Uno más"><Plus size={18} /></button>
-                            <span className="font-display text-lg leading-none tabular-nums">{n}</span>
-                            <button onClick={() => { const l = carrito.find((b) => b.producto.id === p.id); if (l) cambiar(l.clave, -1); }} className="grid h-10 w-10 place-items-center rounded-full text-gold" aria-label="Uno menos"><Minus size={18} /></button>
-                          </div>
-                        ) : (
-                          <button onClick={() => sumar(p, categoria)} className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gold text-void shadow-lg shadow-gold/20 active:scale-95" aria-label={`Agregar ${p.nombre}`}>
-                            <Plus size={22} />
-                            {n > 0 && <span className="absolute -top-1 -right-1 grid h-5 min-w-5 place-items-center rounded-full bg-venom px-1 text-[11px] font-bold text-void">{n}</span>}
-                          </button>
-                        )
+                    <div className={`rounded-2xl border p-3 transition ${n ? 'border-gold/60 bg-gold/10' : 'border-gold/10 bg-[#06140f]'} ${sinStock ? 'opacity-45' : ''}`}>
+                      <div className="flex items-center gap-3">
+                        {p.imagen_url && <Foto p={p} categoria={categoria} className="h-16 w-16 shrink-0 rounded-xl" />}
+                        <button className="min-w-0 flex-1 text-left" disabled={!puedePedir || sinStock || enLinea} onClick={() => sumar(p, categoria)}>
+                          <p className="leading-tight font-medium">{p.nombre}</p>
+                          {p.descripcion && <p className="mt-0.5 line-clamp-2 text-xs text-smoke">{p.descripcion}</p>}
+                          {!enLinea && <p className="mt-1.5 font-display text-lg text-gold-light">{dinero(p.variantes[0].precios[moneda], moneda)}</p>}
+                          {sinStock && <p className="text-xs text-red-300">Agotado por ahora</p>}
+                          {p.variantes[0].seleccion && !sinStock && <p className="text-xs text-venom">Arma tu surtido</p>}
+                          {!rapido && !enLinea && !p.variantes[0].seleccion && !sinStock && <p className="text-[11px] text-smoke">Toca para elegir opciones</p>}
+                        </button>
+                        {puedePedir && !sinStock && !enLinea && (
+                          rapido && n > 0 ? (
+                            <div className="flex shrink-0 items-center gap-1 rounded-full border border-gold/40 p-0.5">
+                              <button onClick={() => { const l = carrito.find((b) => b.producto.id === p.id); if (l) cambiar(l.clave, -1); }} className="grid h-10 w-10 place-items-center rounded-full text-gold" aria-label="Uno menos"><Minus size={18} /></button>
+                              <span className="w-6 text-center font-display text-lg leading-none tabular-nums">{n}</span>
+                              <button onClick={() => sumar(p, categoria)} className="grid h-10 w-10 place-items-center rounded-full bg-gold text-void" aria-label="Uno más"><Plus size={18} /></button>
+                            </div>
+                          ) : (
+                            <button onClick={() => sumar(p, categoria)} className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gold text-void shadow-lg shadow-gold/20 active:scale-95" aria-label={`Agregar ${p.nombre}`}>
+                              <Plus size={22} />
+                              {n > 0 && <span className="absolute -top-1 -right-1 grid h-5 min-w-5 place-items-center rounded-full bg-venom px-1 text-[11px] font-bold text-void">{n}</span>}
+                            </button>
+                          )
+                        )}
+                      </div>
+                      {puedePedir && !sinStock && (rapido || enLinea) && conOpciones && (
+                        <button onClick={() => setConfig({ producto: p, categoria })} className="mt-1 text-xs text-gold/90 underline-offset-2 active:underline">
+                          + opciones{categoria.adicionales.length ? ` (${categoria.adicionales.slice(0, 2).map((a) => a.nombre.toLowerCase()).join(', ')}${categoria.adicionales.length > 2 ? '…' : ''})` : ''}
+                        </button>
+                      )}
+                      {enLinea && (
+                        <div className="mt-2.5 grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                          {p.variantes.map((v) => {
+                            const nv = carrito.filter((b) => b.variante.id === v.id).reduce((t, b) => t + b.cantidad, 0);
+                            const vAgotada = v.disponibles === 0;
+                            return (
+                              <button key={v.id} disabled={!puedePedir || sinStock || vAgotada} onClick={() => sumarVariante(p, categoria, v)}
+                                className={`relative flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left transition active:scale-[.97] disabled:opacity-40 ${nv ? 'border-gold bg-gold/15' : 'border-gold/25 hover:border-gold/60'}`}>
+                                <span className="min-w-0">
+                                  <span className="block truncate text-sm">{v.presentacion}</span>
+                                  <span className="block font-display text-base text-gold-light">{dinero(v.precios[moneda], moneda)}</span>
+                                </span>
+                                {nv > 0 ? <span className="grid h-7 min-w-7 place-items-center rounded-full bg-gold px-1.5 text-sm font-bold text-void">{nv}</span> : <Plus size={18} className="shrink-0 text-gold" />}
+                              </button>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
                   </li>
@@ -323,15 +408,31 @@ export function PedirQR({ token }: { token: string }) {
           </section>
         ))}
         {!productos.length && <p className="py-16 text-center text-smoke">No encontramos “{q}” en la carta.</p>}
+        <div className="mt-8">
+          {cuenta.mensaje ? (
+            <p className={`rounded-2xl border px-4 py-3 text-sm ${cuenta.error ? 'border-red-400/30 bg-red-500/10 text-red-200' : 'border-venom/40 bg-emerald/30 text-venom'}`}>{cuenta.mensaje}</p>
+          ) : (
+            <button onClick={pedirCuenta} disabled={cuenta.cargando}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-gold/30 text-sm text-gold-light active:bg-gold/10 disabled:opacity-50">
+              {cuenta.cargando ? <Loader2 size={16} className="animate-spin" /> : <Receipt size={16} />} ¿Ya terminaste? Pedir la cuenta
+            </button>
+          )}
+        </div>
         <p className="mt-10 text-center text-[11px] text-smoke/70">Precios en {moneda}. Tu pedido lo confirma la barra antes de prepararlo.</p>
       </div>
+
+      {agregado && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
+          <p className="rounded-full bg-venom px-4 py-2 text-sm font-semibold text-void shadow-xl">✓ Agregado: {agregado}</p>
+        </div>
+      )}
 
       {/* ------------------------------------------------------------ Barra inferior */}
       {unidades > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gold/30 bg-[#020a07]/95 p-3 pb-[max(env(safe-area-inset-bottom),12px)] backdrop-blur-xl">
           <button onClick={() => setVerCarrito(true)} className="mx-auto flex h-14 w-full max-w-3xl items-center gap-3 rounded-2xl bg-gold px-4 font-semibold text-void active:scale-[.99]">
             <span className="grid h-9 min-w-9 place-items-center rounded-full bg-void/20 px-2 font-display text-lg">{unidades}</span>
-            <span className="flex-1 text-left">Ver mi pedido</span>
+            <span className="flex-1 text-left">Revisar y enviar pedido</span>
             <span className="font-display text-xl">{dinero(total, moneda)}</span>
           </button>
         </div>
@@ -430,7 +531,7 @@ export function PedirQR({ token }: { token: string }) {
           publico
           producto={config.producto} categoria={config.categoria} moneda={moneda} asientos={0} asientoInicial={null}
           onCerrar={() => setConfig(null)}
-          onAgregar={(b) => { setCarrito((c) => [...c, b]); setConfig(null); }}
+          onAgregar={(b) => { setCarrito((c) => [...c, b]); setConfig(null); setAgregado(b.producto.nombre); }}
         />
       )}
     </main>
@@ -494,5 +595,15 @@ function EstadoPedido({ p }: { p: MiPedido }) {
         <p className="truncate text-xs text-ivory/70"><ShoppingBag size={11} className="mr-1 inline" />{unidades} {unidades === 1 ? 'producto' : 'productos'} · {p.resumen.map((l) => `${l.cantidad} ${l.nombre}`).join(', ')} · {hora(p.creado_en)}</p>
       </div>
     </div>
+  );
+}
+
+/** Foto del producto; si no tiene, el emoji de su categoría sobre un fondo de marca */
+function Foto({ p, categoria, className = '' }: { p: ProductoCat; categoria: CategoriaCat; className?: string }) {
+  return p.imagen_url ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={p.imagen_url} alt="" loading="lazy" className={`object-cover ${className}`} />
+  ) : (
+    <span className={`grid place-items-center bg-gradient-to-br from-emerald/40 to-void text-4xl ${className}`}>{categoria.icono ?? '🍽️'}</span>
   );
 }
