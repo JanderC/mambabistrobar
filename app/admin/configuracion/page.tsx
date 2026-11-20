@@ -79,6 +79,24 @@ export default function ConfiguracionPage() {
             <Interruptor activo={a.cocina_pasa_por_barra ?? true} onCambio={(v) => setA({ ...a, cocina_pasa_por_barra: v })} etiqueta="Lo de cocina que piden los mesoneros pasa primero por la barra (la barra lo envía y ahí se imprime la comanda)" />
           </div>
           <Campo etiqueta="Texto al pie del ticket"><Input value={a.ticket_pie ?? ''} onChange={(e) => setA({ ...a, ticket_pie: e.target.value })} /></Campo>
+          {/* Cierre diario automático */}
+          <div className="rounded-2xl border border-gold/15 bg-gold/5 p-4">
+            <p className="font-medium text-gold-light">📊 Cierre diario automático</p>
+            <p className="mb-3 text-xs text-smoke">Al terminar la jornada se manda solo el resumen del día: lo cobrado por moneda y método, lo más vendido, las cajas y lo que quedó por cobrar.</p>
+            <div className="grid gap-3 sm:grid-cols-[1fr_1fr_140px]">
+              <Campo etiqueta="WhatsApp (con código de país)" ayuda="Varios separados por coma. Sale por el WhatsApp vinculado.">
+                <Input value={a.cierre_whatsapp ?? ''} onChange={(e) => setA({ ...a, cierre_whatsapp: e.target.value })} placeholder="573001234567, 584121234567" inputMode="tel" />
+              </Campo>
+              <Campo etiqueta="Correos" ayuda="Varios separados por coma.">
+                <Input value={a.cierre_email ?? ''} onChange={(e) => setA({ ...a, cierre_email: e.target.value })} placeholder="duena@correo.com" inputMode="email" />
+              </Campo>
+              <Campo etiqueta="Hora de envío" ayuda="Hora del local (0 a 23).">
+                <Select value={a.cierre_hora ?? 6} onChange={(e) => setA({ ...a, cierre_hora: Number(e.target.value) })}>
+                  {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{h === 0 ? '12 a. m.' : h < 12 ? `${h} a. m.` : h === 12 ? '12 p. m.' : `${h - 12} p. m.`}</option>)}
+                </Select>
+              </Campo>
+            </div>
+          </div>
           <Boton variante="oro" cargando={guardando} onClick={() => guardar('/config/ajustes', a)}>Guardar sistema</Boton>
         </Tarjeta>
       )}

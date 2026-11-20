@@ -1,5 +1,5 @@
 import {
-  type LucideIcon, Armchair, BarChart3, Bell, Beer, Boxes, CalendarCheck, ChefHat, CreditCard, HandCoins, Home, Images, LayoutGrid, Megaphone,
+  type LucideIcon, Armchair, Clock, BarChart3, Bell, Beer, Boxes, CalendarCheck, ChefHat, CreditCard, HandCoins, Home, Images, LayoutGrid, Megaphone,
   MessageCircle, PartyPopper, QrCode, Receipt, Settings, ShieldCheck, Sparkles, TabletSmartphone, TrendingUp, UserCog, Users, UtensilsCrossed, Wallet, Zap,
 } from 'lucide-react';
 
@@ -76,6 +76,7 @@ export const AREAS: Area[] = [
       { href: '/admin/reportes', nombre: 'Reportes', descripcion: 'Ventas por día, producto, método de pago, zona y mesonero', icono: BarChart3, roles: GESTION, claves: 'estadisticas informes ventas' },
       { href: '/admin/tasas', nombre: 'Tasas', descripcion: 'Dólar BCV, TRM y cruce bolívar/peso', icono: TrendingUp, roles: [...GESTION, 'cajero', 'barra'], claves: 'dolar bcv trm cambio bolivar peso' },
       { href: '/admin/metodos-pago', nombre: 'Métodos de pago', descripcion: 'Efectivo, Pago Móvil, Zelle, Nequi… y sus monedas', icono: CreditCard, roles: GESTION, claves: 'zelle pago movil nequi transferencia' },
+      { href: '/admin/asistencia', nombre: 'Asistencia', descripcion: 'Hora de entrada y salida del personal y horas trabajadas', icono: Clock, roles: GESTION, claves: 'personal entrada salida horas turno control asistencia empleados' },
       { href: '/admin/usuarios', nombre: 'Usuarios', descripcion: 'Equipo, roles y contraseñas', icono: UserCog, roles: [], claves: 'roles permisos personal' },
       { href: '/admin/configuracion', nombre: 'Configuración', descripcion: 'Datos del local, horarios, moneda, servicio y aforo', icono: Settings, roles: [], claves: 'ajustes horarios moneda servicio propina aforo local' },
     ],

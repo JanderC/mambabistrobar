@@ -4,6 +4,7 @@ import { Beer, ChevronDown, ImagePlus, Plus, Search, Star, Trash2 } from 'lucide
 import { useMemo, useRef, useState } from 'react';
 import { CampoForm, Crud } from '@/components/admin/Crud';
 import { CrearTobo } from '@/components/admin/CrearTobo';
+import { VincularInventario } from '@/components/admin/VincularInventario';
 import { Boton, Campo, Cargando, Encabezado, ErrorCaja, Input, InputNum, Insignia, Interruptor, Modal, Pestanas, Select, Tarjeta, useAvisos, useDatos } from '@/components/admin/ui';
 import { adm } from '@/lib/admin/api';
 import { subirFoto } from '@/lib/admin/imagen';
@@ -154,6 +155,7 @@ function ListaProductos({ categorias, insumos, catsInsumo }: { categorias: Categ
         </Boton>
       </div>
       {tobo && <CrearTobo onCerrar={() => setTobo(false)} onCreado={() => { setTobo(false); recargar(); }} />}
+      {datos && <VincularInventario productos={datos as never} onCambio={recargar} />}
 
       {cargando ? <Cargando /> : error ? <ErrorCaja mensaje={error} onReintentar={recargar} /> : (
         <div className="space-y-6">

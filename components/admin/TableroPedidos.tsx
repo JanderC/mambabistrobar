@@ -20,7 +20,7 @@ type Item = {
   mesa_tipo: string | null; mesonero: string | null; mesonero_id: number | null; asignado: string | null; modificadores: { tipo: string; nombre: string; cantidad: number }[];
 };
 /** Lo que se mandó junto: una ronda de una cuenta */
-type Pedido = { clave: string; cuenta_id: number; lugar: string; cliente: string | null; mesonero: string | null; mesonero_id: number | null; asignado: string | null; desde: string; items: Item[] };
+type Pedido = { clave: string; estacion: string; cuenta_id: number; lugar: string; cliente: string | null; mesonero: string | null; mesonero_id: number | null; asignado: string | null; desde: string; items: Item[] };
 type Miembro = { id: number; nombre: string; rol: string };
 
 const lugarDe = (i: { tipo: string; mesa_numero: number | null; mesa_nombre: string | null; mesa_tipo: string | null }) =>
@@ -29,8 +29,9 @@ const lugarDe = (i: { tipo: string; mesa_numero: number | null; mesa_nombre: str
 function agrupar(items: Item[]): Pedido[] {
   const m = new Map<string, Pedido>();
   for (const i of items) {
-    const clave = `${i.cuenta_id}-${i.ronda}`;
-    if (!m.has(clave)) m.set(clave, { clave, cuenta_id: i.cuenta_id, lugar: lugarDe(i), cliente: i.nombre_cliente, mesonero: i.mesonero, mesonero_id: i.mesonero_id ?? null, asignado: i.asignado ?? null, desde: i.creado_en, items: [] });
+    // Cocina y barra van por separado: cada una prepara, marca listo y entrega lo suyo
+    const clave = `${i.cuenta_id}-${i.ronda}-${i.estacion}`;
+    if (!m.has(clave)) m.set(clave, { clave, estacion: i.estacion, cuenta_id: i.cuenta_id, lugar: lugarDe(i), cliente: i.nombre_cliente, mesonero: i.mesonero, mesonero_id: i.mesonero_id ?? null, asignado: i.asignado ?? null, desde: i.creado_en, items: [] });
     m.get(clave)!.items.push(i);
   }
   return [...m.values()].sort((a, b) => a.desde.localeCompare(b.desde));
@@ -399,6 +400,9 @@ function Comanda({ g, equipo, onAsignar, onAbrir, onItem, acciones }: { g: Pedid
   const enCurso = g.items.some((i) => i.estado !== 'listo');
   return (
     <Tarjeta color={enCurso && minutos(g.desde) > 20 ? 'red' : enCurso ? 'gold' : 'venom'} lugar={g.lugar} cliente={g.cliente} desde={g.desde} onAbrir={onAbrir}>
+      <p className={`mb-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${g.estacion === 'cocina' ? 'bg-gold/15 text-gold-light' : 'bg-venom/15 text-venom'}`}>
+        {g.estacion === 'cocina' ? <ChefHat size={12} /> : <Martini size={12} />} {g.estacion === 'cocina' ? 'Cocina' : 'Barra'}
+      </p>
       {/* Quién lleva este pedido a la mesa: le llega el aviso «listo para llevar» */}
       <label className={`mb-2 flex items-center gap-2 rounded-xl border px-2 py-1 text-xs ${g.mesonero_id ? 'border-venom/30 bg-emerald/20 text-venom' : 'border-orange-400/50 bg-orange-500/10 text-orange-200'}`}>
         <UserRound size={13} className="shrink-0" />

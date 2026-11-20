@@ -1,9 +1,10 @@
 'use client';
 
-import { ArrowDownLeft, ArrowUpRight, ChefHat, ChevronLeft, ChevronRight, Lock, Martini, Receipt, Unlock, Wallet } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, ChefHat, Send, ChevronLeft, ChevronRight, Lock, Martini, Receipt, Unlock, Wallet } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { Cargando, Dato, ErrorCaja, Insignia, Tarjeta, Vacio, useDatos } from '@/components/admin/ui';
+import { Cargando, Dato, ErrorCaja, Insignia, Tarjeta, Vacio, useAvisos, useDatos } from '@/components/admin/ui';
+import { adm } from '@/lib/admin/api';
 import { MONEDAS, type Moneda, type PorMoneda, type Tasa, dinero, soloHora } from '@/lib/admin/moneda';
 import { useVivo } from '@/lib/admin/vivo';
 
@@ -64,6 +65,7 @@ export function MovimientosDia() {
           className="h-10 rounded-xl border border-gold/20 bg-void/60 px-3 text-sm text-ivory [color-scheme:dark]" />
         <button onClick={() => !esHoy && setFecha(mover(fecha, 1))} disabled={esHoy} className="grid h-10 w-10 place-items-center rounded-xl border border-gold/20 hover:bg-white/5 disabled:opacity-30" aria-label="Día siguiente"><ChevronRight size={18} /></button>
         {!esHoy && <button onClick={() => setFecha(hoyISO())} className="h-10 rounded-xl bg-gold px-4 text-sm font-semibold text-void">Hoy</button>}
+        <EnviarCierre fecha={fecha} />
       </div>
     </div>
   );
@@ -238,5 +240,30 @@ export function MovimientosDia() {
         </Tarjeta>
       )}
     </div>
+  );
+}
+
+/** Manda el cierre de ese día ya mismo a los WhatsApp y correos de Configuración */
+function EnviarCierre({ fecha }: { fecha: string }) {
+  const avisos = useAvisos();
+  const [ocupado, setOcupado] = useState(false);
+  const enviar = async () => {
+    setOcupado(true);
+    try {
+      const r = await adm<{ enviados: string[]; fallidos: string[]; sin_destinos: boolean }>('/caja/diario/enviar', { method: 'POST', body: { fecha } });
+      if (r.sin_destinos) avisos.error('Configura a qué WhatsApp o correo mandar el cierre en Administración → Configuración → Sistema');
+      else if (r.enviados.length) avisos.ok(`Cierre enviado a ${r.enviados.join(', ')}${r.fallidos.length ? ` · no salió: ${r.fallidos.join(', ')}` : ''}`);
+      else avisos.error(`No se pudo enviar: ${r.fallidos.join(', ')}`);
+    } catch (e) {
+      avisos.error(e);
+    } finally {
+      setOcupado(false);
+    }
+  };
+  return (
+    <button onClick={enviar} disabled={ocupado} title="Mandar el resumen de este día por WhatsApp / correo"
+      className="flex h-10 items-center gap-1.5 rounded-xl border border-venom/40 px-3 text-sm text-venom hover:bg-venom/10 disabled:opacity-50">
+      <Send size={15} /> {ocupado ? 'Enviando…' : 'Enviar cierre'}
+    </button>
   );
 }

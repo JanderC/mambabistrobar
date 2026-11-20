@@ -10,6 +10,7 @@ import { type Area, INICIO, ROLES, areasPara, ubicar } from '@/lib/admin/modulos
 import { type Tasa, fechaCorta, fechaHora, numero } from '@/lib/admin/moneda';
 import { sonar, useVivo, useVivoConectado } from '@/lib/admin/vivo';
 import { useSesion } from './Sesion';
+import { MarcarAsistencia } from './Asistencia';
 import { ImpresionAutomatica } from './ImpresoraComandas';
 import { Boton, Campo, Input, Modal, useAvisos, useDatos } from './ui';
 
@@ -232,6 +233,7 @@ function Estado() {
 
   return (
     <div ref={ref} className="relative flex items-center gap-2">
+      <MarcarAsistencia />
       <EnVivo />
       <ImpresionAutomatica />
       {tasa.datos && (
