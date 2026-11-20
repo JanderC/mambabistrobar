@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Area, Boton, Campo, Cargando, Encabezado, Input, InputNum, Interruptor, Pestanas, Select, Tarjeta, useAvisos, useDatos } from '@/components/admin/ui';
+import { PanelImpresora } from '@/components/admin/ImpresoraComandas';
 import { adm } from '@/lib/admin/api';
 import { API_URL } from '@/lib/api';
 
@@ -9,7 +10,12 @@ const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', '
 type Horario = { dia_semana: number; abierto: boolean; hora_apertura: string | null; hora_cierre: string | null; cierre_cocina: string | null; cierre_barra: string | null; nota: string | null };
 
 export default function ConfiguracionPage() {
-  const [tab, setTab] = useState<'sistema' | 'local' | 'horarios'>('sistema');
+  const [tab, setTab] = useState<'sistema' | 'local' | 'horarios' | 'impresora'>('sistema');
+  // Enlace directo: /admin/configuracion?tab=impresora
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get('tab');
+    if (t === 'impresora' || t === 'local' || t === 'horarios') setTab(t);
+  }, []);
   const ajustes = useDatos<Record<string, any>>('/config/ajustes');
   const [a, setA] = useState<Record<string, any> | null>(null);
   const [local, setLocal] = useState<Record<string, any> | null>(null);
@@ -47,8 +53,16 @@ export default function ConfiguracionPage() {
   return (
     <div className="max-w-4xl">
       <Encabezado titulo="Configuración" descripcion="Reglas del sistema y datos que se muestran en el sitio web.">
-        <Pestanas valor={tab} onCambio={setTab} opciones={[{ valor: 'sistema', etiqueta: 'Sistema' }, { valor: 'local', etiqueta: 'Datos del local' }, { valor: 'horarios', etiqueta: 'Horarios' }]} />
+        <Pestanas valor={tab} onCambio={setTab} opciones={[{ valor: 'sistema', etiqueta: 'Sistema' }, { valor: 'local', etiqueta: 'Datos del local' }, { valor: 'horarios', etiqueta: 'Horarios' }, { valor: 'impresora', etiqueta: '🖨️ Impresora' }]} />
       </Encabezado>
+
+      {tab === 'impresora' && (
+        <Tarjeta className="max-w-3xl p-5">
+          <h2 className="mb-1 font-display text-xl text-gold-light">Impresora térmica</h2>
+          <p className="mb-4 text-sm text-smoke">Vincula la JALPOS (u otra ESC/POS de 80 o 58 mm) por Bluetooth o USB a este computador para imprimir comandas y tickets.</p>
+          <PanelImpresora />
+        </Tarjeta>
+      )}
 
       {tab === 'sistema' && (
         <Tarjeta className="space-y-5 p-5">

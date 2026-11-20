@@ -73,6 +73,19 @@ export async function puertoAutorizado(): Promise<any> {
   return puerto;
 }
 
+/** Quita el permiso del puerto en este navegador (para vincular otra impresora desde cero) */
+export async function olvidarImpresora() {
+  const p = await puertoAutorizado();
+  try {
+    await p?.close?.();
+  } catch {}
+  try {
+    await p?.forget?.();
+  } catch {}
+  puerto = null;
+  abiertoA = 0;
+}
+
 async function escribir(bytes: Uint8Array, baudios: number) {
   const p = await puertoAutorizado();
   if (!p) throw new Error('Primero conecta la impresora');

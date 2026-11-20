@@ -78,7 +78,7 @@ export const AREAS: Area[] = [
       { href: '/admin/metodos-pago', nombre: 'Métodos de pago', descripcion: 'Efectivo, Pago Móvil, Zelle, Nequi… y sus monedas', icono: CreditCard, roles: GESTION, claves: 'zelle pago movil nequi transferencia' },
       { href: '/admin/asistencia', nombre: 'Asistencia', descripcion: 'Hora de entrada y salida del personal y horas trabajadas', icono: Clock, roles: GESTION, claves: 'personal entrada salida horas turno control asistencia empleados' },
       { href: '/admin/usuarios', nombre: 'Usuarios', descripcion: 'Equipo, roles y contraseñas', icono: UserCog, roles: [], claves: 'roles permisos personal' },
-      { href: '/admin/configuracion', nombre: 'Configuración', descripcion: 'Datos del local, horarios, moneda, servicio y aforo', icono: Settings, roles: [], claves: 'ajustes horarios moneda servicio propina aforo local' },
+      { href: '/admin/configuracion', nombre: 'Configuración', descripcion: 'Datos del local, horarios, impresora, moneda y aforo', icono: Settings, roles: [], claves: 'ajustes horarios moneda servicio propina aforo local impresora jalpos bluetooth ticket' },
     ],
   },
 ];
